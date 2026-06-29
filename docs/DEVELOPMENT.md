@@ -51,7 +51,26 @@ Development Rules
 * Reuse components before creating new ones.
 * Keep business logic inside helpers.
 * Keep persistence inside services.
+* Route finance data access through src/services/storage/storageRepository.js when practical.
+* Keep existing localStorage data as the migration source until the offline database is implemented.
 * Do not introduce new libraries without approval.
+
+⸻
+
+Offline-First Storage
+
+The app is preparing for offline-first local storage.
+
+Current behavior:
+
+* localStorage remains the active persistence fallback.
+* src/services/localStorageService.js must stay in place.
+* src/services/storage/storageRepository.js is the public data access boundary for future hook migrations.
+* src/services/storage/migrationService.js tracks safe, idempotent migration metadata.
+* Backend sync is planned but not implemented.
+* Native SQLite/local database storage is planned but not implemented.
+
+Do not delete or replace existing localStorage user data during migration work.
 
 ⸻
 

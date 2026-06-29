@@ -47,6 +47,9 @@ Pages / Components
        Helpers
           │
           ▼
+ Storage Repository
+          │
+          ▼
       Services
           │
           ▼
@@ -69,9 +72,17 @@ Business logic is implemented inside the helper layer, including:
 
 Services
 
-All communication with LocalStorage is handled through the service layer.
+All communication with persisted finance data is handled through the service layer.
 
 Components should never access LocalStorage directly.
+
+Storage Repository
+
+The app is moving toward an offline-first storage architecture through:
+
+src/services/storage/storageRepository.js
+
+Hooks should use this repository as the public data access layer. The repository currently delegates to the existing localStorage service so existing user data remains available and unchanged.
 
 ⸻
 
@@ -151,6 +162,14 @@ Data Persistence
 Application data is currently stored using:
 
 src/services/localStorageService.js
+
+The offline-first storage boundary is:
+
+src/services/storage/
+
+This folder contains repository, migration, local database, sync queue, and sync service boundaries. SQLite/native storage and backend synchronization are planned but not implemented yet.
+
+Existing localStorage data remains the fallback and migration source. Migration must be safe and must not delete existing localStorage data.
 
 Components should never communicate directly with LocalStorage.
 

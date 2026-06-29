@@ -29,6 +29,7 @@ Artifact Types
 * AAB
 * Production Build
 * Development Build
+* localStorage migration metadata
 
 ⸻
 
@@ -37,6 +38,8 @@ Rules
 * Never edit generated artifacts.
 * Keep source changes inside the source code.
 * Generated files should only be committed when explicitly required.
+* localStorage remains a runtime data source and is not a generated artifact.
+* Migration metadata records completion only; it must not remove existing user data.
 
 ⸻
 

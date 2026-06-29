@@ -9,6 +9,7 @@ All notable changes to this project should be documented here.
 Added
 
 * Initial project documentation.
+* Offline-first storage service boundaries for repository access, migration metadata, local database placeholders, sync queue placeholders, and disabled future sync.
 
 ⸻
 
