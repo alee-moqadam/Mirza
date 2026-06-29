@@ -1,0 +1,7 @@
+com.personalfinance.nativeapp-pngs-0 /Users/macbook/Documents/Codex/2026-06-14/create-a-mobile-first-react-vite/native-android/app/build/generated/res/pngs/debug
+com.personalfinance.nativeapp-resValues-1 /Users/macbook/Documents/Codex/2026-06-14/create-a-mobile-first-react-vite/native-android/app/build/generated/res/resValues/debug
+com.personalfinance.nativeapp-packageDebugResources-2 /Users/macbook/Documents/Codex/2026-06-14/create-a-mobile-first-react-vite/native-android/app/build/intermediates/incremental/debug/packageDebugResources/merged.dir
+com.personalfinance.nativeapp-packageDebugResources-3 /Users/macbook/Documents/Codex/2026-06-14/create-a-mobile-first-react-vite/native-android/app/build/intermediates/incremental/debug/packageDebugResources/stripped.dir
+com.personalfinance.nativeapp-merged_res-4 /Users/macbook/Documents/Codex/2026-06-14/create-a-mobile-first-react-vite/native-android/app/build/intermediates/merged_res/debug
+com.personalfinance.nativeapp-debug-5 /Users/macbook/Documents/Codex/2026-06-14/create-a-mobile-first-react-vite/native-android/app/src/debug/res
+com.personalfinance.nativeapp-main-6 /Users/macbook/Documents/Codex/2026-06-14/create-a-mobile-first-react-vite/native-android/app/src/main/res

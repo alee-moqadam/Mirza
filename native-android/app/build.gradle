@@ -1,0 +1,14 @@
+apply plugin: 'com.android.application'
+
+android {
+    namespace 'com.personalfinance.nativeapp'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'com.personalfinance.nativeapp'
+        minSdk 23
+        targetSdk 34
+        versionCode 1
+        versionName '1.0-native'
+    }
+}

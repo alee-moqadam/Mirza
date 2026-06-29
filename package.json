@@ -1,0 +1,32 @@
+{
+  "name": "mirza",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "android:sync": "npm run build && cap sync android",
+    "android:open": "cap open android",
+    "android:debug": "npm run android:sync && cd android && ./gradlew --init-script init-repositories.gradle assembleDebug",
+    "android:bundle": "npm run android:sync && cd android && ./gradlew --init-script init-repositories.gradle bundleRelease",
+    "android:prepare-icon": "node scripts/prepare-android-assets.mjs",
+    "android:assets": "npm run android:prepare-icon && capacitor-assets generate --android --iconBackgroundColor '#ffffff' --iconBackgroundColorDark '#111111'"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.2.1",
+    "@capacitor/core": "^6.2.1",
+    "jalaali-js": "^1.2.8",
+    "lucide-react": "^0.468.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^6.2.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "sharp": "^0.32.6",
+    "vite": "^6.0.5"
+  }
+}
