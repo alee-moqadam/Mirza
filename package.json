@@ -2,11 +2,13 @@
   "name": "mirza",
   "private": true,
   "version": "1.0.0",
+  "homepage": "https://alee-moqadam.github.io/Mirza",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "deploy": "npm run build && gh-pages -d dist",
     "android:sync": "npm run build && cap sync android",
     "android:open": "cap open android",
     "android:debug": "npm run android:sync && cd android && ./gradlew --init-script init-repositories.gradle assembleDebug",
@@ -26,6 +28,7 @@
     "@capacitor/assets": "^3.0.5",
     "@capacitor/cli": "^6.2.1",
     "@vitejs/plugin-react": "^4.3.4",
+    "gh-pages": "^6.3.0",
     "sharp": "^0.32.6",
     "vite": "^6.0.5"
   }
