@@ -1,0 +1,7 @@
+node_modules
+dist
+.DS_Store
+work
+.android-toolchain
+android/.gradle
+android/local.properties
