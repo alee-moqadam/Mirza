@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { daysUntil, isNearDue, isOverdue } from '../helpers/dates'
 import { SETTLED_STATUSES } from '../constants/records'
-import { readFinanceData, restoreSampleData, writeFinanceData } from '../services/localStorageService'
+import { readFinanceData, restoreSampleData, writeFinanceData } from '../services/storage/storageRepository'
 
 export function useFinanceData() {
   const [data, setData] = useState(readFinanceData)
