@@ -1,0 +1,28 @@
+{
+    "logs": [
+        {
+            "outputFile": "com.personalfinance.nativeapp-mergeDebugResources-2:/values/values.xml",
+            "map": [
+                {
+                    "source": "/Users/macbook/Documents/Codex/2026-06-14/create-a-mobile-first-react-vite/native-android/app/src/main/res/values/styles.xml",
+                    "from": {
+                        "startLines": "1",
+                        "startColumns": "4",
+                        "startOffsets": "16",
+                        "endLines": "8",
+                        "endColumns": "12",
+                        "endOffsets": "465"
+                    },
+                    "to": {
+                        "startLines": "2",
+                        "startColumns": "4",
+                        "startOffsets": "55",
+                        "endLines": "9",
+                        "endColumns": "12",
+                        "endOffsets": "504"
+                    }
+                }
+            ]
+        }
+    ]
+}

@@ -1,0 +1,7 @@
+#Mon Jun 15 08:50:43 IRST 2026
+base.1=/Users/macbook/Documents/Codex/2026-06-14/create-a-mobile-first-react-vite/native-android/app/build/intermediates/dex/debug/mergeProjectDexDebug/2/classes.dex
+path.1=2/classes.dex
+base.0=/Users/macbook/Documents/Codex/2026-06-14/create-a-mobile-first-react-vite/native-android/app/build/intermediates/dex/debug/mergeProjectDexDebug/0/classes.dex
+renamed.1=classes2.dex
+renamed.0=classes.dex
+path.0=0/classes.dex
