@@ -127,7 +127,7 @@ function DebtFormFields({ editing, setEditing, change, setValue, data, updateDat
     if (next.isPeriodic) {
       next.recurrence = next.recurrence && next.recurrence !== 'فقط یک‌بار' ? next.recurrence : 'ماهانه'
       next.endless = false
-      if (next.dueDate && next.loanDurationMonths) next.endDate = addMonthsToJalali(next.dueDate, Number(next.loanDurationMonths))
+      if ((next.startDate || next.loanStartDate || next.dueDate) && next.loanDurationMonths) next.endDate = addMonthsToJalali(next.startDate || next.loanStartDate || next.dueDate, Number(next.loanDurationMonths))
     } else if (Object.prototype.hasOwnProperty.call(patch, 'isPeriodic')) {
       next.recurrence = 'فقط یک‌بار'
       next.endless = false
@@ -238,10 +238,10 @@ function DebtFormFields({ editing, setEditing, change, setValue, data, updateDat
     <section className="form-section-container periodic-group">
       <Toggle label="پرداخت دوره‌ای" checked={Boolean(editing.isPeriodic)} onChange={isPeriodic => applyPeriodicPatch({ isPeriodic })}/>
       {editing.isPeriodic && <>
-        <JalaliDateInput label="تاریخ شروع پرداخت دوره‌ای" value={editing.loanStartDate} onChange={event => applyPeriodicPatch({ loanStartDate: event.target.value })}/>
+        <JalaliDateInput label="تاریخ شروع پرداخت دوره‌ای" value={editing.startDate || editing.loanStartDate || ''} onChange={event => applyPeriodicPatch({ startDate: event.target.value })}/>
         <LoanDurationStepper value={editing.loanDurationMonths} onChange={setLoanDuration}/>
         <RecurrenceGroup label="دوره پرداخت" options={RECURRENCE_OPTIONS} editing={editing} setEditing={setEditing} plain/>
-        <p className="field-hint">اولین سررسید مبنای ساخت دوره‌های بعدی و محاسبه تاریخ پایان است.</p>
+        <p className="field-hint">تاریخ شروع مبنای ساخت دوره‌های بعدی و محاسبه تاریخ پایان است؛ سررسید فقط پرداخت بعدی را مشخص می‌کند.</p>
       </>}
     </section>
     <section className="form-section-container loan-group">
@@ -272,7 +272,7 @@ function IncomeFormFields({ editing, setEditing, change, setValue, data, categor
     if (next.isPeriodic) {
       next.recurrence = next.recurrence && next.recurrence !== 'فقط یک‌بار' ? next.recurrence : 'ماهانه'
       next.endless = false
-      if (next.dueDate && next.loanDurationMonths) next.endDate = addMonthsToJalali(next.dueDate, Number(next.loanDurationMonths))
+      if ((next.startDate || next.dueDate) && next.loanDurationMonths) next.endDate = addMonthsToJalali(next.startDate || next.dueDate, Number(next.loanDurationMonths))
     } else if (Object.prototype.hasOwnProperty.call(patch, 'isPeriodic')) {
       next.recurrence = 'فقط یک‌بار'
       next.endless = false
@@ -292,7 +292,7 @@ function IncomeFormFields({ editing, setEditing, change, setValue, data, categor
         <JalaliDateInput label="تاریخ شروع پرداخت دوره‌ای" value={editing.startDate} onChange={event => setEditing({ ...editing, startDate: event.target.value })}/>
         <LoanDurationStepper value={editing.loanDurationMonths} onChange={setIncomeDuration}/>
         <RecurrenceGroup label="دوره پرداخت" options={RECURRENCE_OPTIONS} editing={editing} setEditing={setEditing} plain/>
-        <p className="field-hint">اولین سررسید دریافت مبنای ساخت دوره‌های بعدی و محاسبه تاریخ پایان است.</p>
+        <p className="field-hint">تاریخ شروع مبنای ساخت دوره‌های بعدی و محاسبه تاریخ پایان است؛ سررسید فقط دریافت بعدی را مشخص می‌کند.</p>
       </>}
     </section>
     <BottomSheetSelect label="دسته‌بندی درآمد" value={editing.category} options={categories.map(item => item.title)} onChange={value => setValue('category', value)}

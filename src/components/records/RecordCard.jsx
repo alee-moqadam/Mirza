@@ -17,19 +17,20 @@ export default function RecordCard({ item, type, currency, onOpen, onMark }) {
   const incomePercent = item.amount ? Math.min(100, Number(item.receivedAmount || 0) / Number(item.amount) * 100) : 0
   const shownDate = item.expenseDate || item.dueDate
   const shownBank = item.issuerBank || item.bank || item.receiverBank
+  const showStaticDivider = type === 'debts' || item.isCheck
   return <article className={`record-card tappable ${isOverdue(item) ? 'overdue' : ''} ${item.status === 'برگشت‌خورده' ? 'bounced' : ''} ${item.isCheck ? 'check-card' : ''}`} onClick={onOpen}>
     <div className="card-top">
       <div><span className="overline">{t(item.isCheck ? (item.relation === 'دریافتنی' || item.direction === 'receivable' ? 'چک دریافتی' : 'چک پرداختی') : type === 'debts' ? 'بدهی' : (item.category || 'بدون دسته‌بندی'))}</span><h3>{item.title}</h3></div>
       <Badge>{status}</Badge>
     </div>
-    <div className={type === 'incomes' ? 'income-amount-row' : ''}>{type === 'incomes' && <span className="mini-donut" style={{ '--percent': `${incomePercent * 3.6}deg` }}/>}<AmountDisplay value={item.amount} currency={currency} className="amount"/></div>
+    <div className={type === 'incomes' ? 'income-amount-row' : ''}>{type === 'incomes' && !item.isCheck && <span className="mini-donut" style={{ '--percent': `${incomePercent * 3.6}deg` }}/>}<AmountDisplay value={item.amount} currency={currency} className="amount"/></div>
     <div className="card-meta">
       <span><CalendarDays size={15} /> {t(type === 'currentExpenses' ? 'تاریخ هزینه' : 'سررسید')} {dateLabel(shownDate)}</span>
       {item.isCheck && shownBank && <span><Building2 size={15}/><BankName title={shownBank} neutral/></span>}
       {item.recurrence && <span><RotateCcw size={15} /> {t(item.recurrence)}</span>}
     </div>
+    {showStaticDivider && <div className="card-divider" aria-hidden="true" />}
     {type === 'debts' && !item.isCheck && <>
-      <div className="progress"><i className="amber" style={{ width: `${Math.min(100, (item.paidCount || 0) / total * 100)}%` }} /></div>
       <p>{number(item.paidCount || 0)} از {number(total)} نوبت پرداخت شده • پرداخت بعدی {dateLabel(item.dueDate)}</p>
     </>}
     {type === 'incomes' && <>

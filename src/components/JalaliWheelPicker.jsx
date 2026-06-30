@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { isValidJalaaliDate } from 'jalaali-js'
-import { Modal } from './UI'
-import { isoToJalali } from '../helpers/dates'
-import { localizeDigits, normalizeDigits } from '../utils/numberFormat'
-import { useI18n } from '../i18n/I18nContext'
+import jalaali from 'jalaali-js'
+import { Modal } from './UI.jsx'
+import { isoToJalali } from '../helpers/dates.js'
+import { localizeDigits, normalizeDigits } from '../utils/numberFormat.js'
+import { useI18n } from '../i18n/I18nContext.jsx'
 
+const { isValidJalaaliDate } = jalaali
 const pad = value => String(value).padStart(2, '0')
 const parseDate = value => {
   const fallback = isoToJalali(new Date())

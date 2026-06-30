@@ -31,16 +31,31 @@ const normalizeContacts = contacts => (contacts || []).map(contact => {
   return { ...contact, relationTitle: contact.relationTitle || '', bankAccounts, bank: contact.bank || primary.bank || '', account: contact.account || primary.account || '', card: contact.card || primary.card || '', iban: contact.iban || primary.iban || '' }
 })
 const normalizeFinanceData = data => {
-  const shouldSeedGoals = !data.financialGoalsSeeded && !(data.financialGoals || []).length
+  const seed = cloneSeed()
+  const source = data && typeof data === 'object' ? data : {}
+  const shouldSeedGoals = !source.financialGoalsSeeded && !(source.financialGoals || []).length
   const horizonMap = { ماهانه: 'تا آخر ماه', 'سه‌ماهه': 'تا سه ماه دیگر', 'شش‌ماهه': 'تا شش ماه دیگر', 'یک‌ساله': 'تا آخر سال', 'چند ساله': 'تا آخر سال' }
-  const financialGoals = (shouldSeedGoals ? cloneSeed().financialGoals : (data.financialGoals || []))
+  const financialGoals = (shouldSeedGoals ? seed.financialGoals : (source.financialGoals || []))
     .map(goal => ({ ...goal, horizon: horizonMap[goal.horizon] || goal.horizon || 'تا آخر ماه' }))
   return {
-    ...data,
-    banks: normalizeBanks(data.banks),
-    financialContacts: normalizeContacts(data.financialContacts),
+    ...seed,
+    ...source,
+    expenses: Array.isArray(source.expenses) ? source.expenses : [],
+    incomes: Array.isArray(source.incomes) ? source.incomes : [],
+    debts: Array.isArray(source.debts) ? source.debts : [],
+    currentExpenses: Array.isArray(source.currentExpenses) ? source.currentExpenses : [],
+    histories: Array.isArray(source.histories) ? source.histories : [],
+    checksAndDebts: Array.isArray(source.checksAndDebts) ? source.checksAndDebts : [],
+    banks: normalizeBanks(source.banks),
+    financialContacts: normalizeContacts(source.financialContacts),
+    expenseCategories: Array.isArray(source.expenseCategories) ? source.expenseCategories : seed.expenseCategories,
+    incomeCategories: Array.isArray(source.incomeCategories) ? source.incomeCategories : seed.incomeCategories,
+    tags: Array.isArray(source.tags) ? source.tags : seed.tags,
+    notifications: Array.isArray(source.notifications) ? source.notifications : [],
+    notificationSettings: source.notificationSettings || seed.notificationSettings || { enabled: false, sentIds: [] },
+    lockSettings: source.lockSettings || seed.lockSettings || { enabled: false, passcodeHash: '', autoLock: 'فوری', biometricCredentialId: '' },
     financialGoals,
-    financialGoalsSeeded: data.financialGoalsSeeded || shouldSeedGoals || financialGoals.length > 0,
+    financialGoalsSeeded: source.financialGoalsSeeded || shouldSeedGoals || financialGoals.length > 0,
   }
 }
 

@@ -13,8 +13,8 @@ import { useRecords } from '../hooks/useRecords'
 import { number } from '../helpers/formatters'
 import HistoryView from './HistoryView'
 import { RECORD_CONFIG, RECORD_DEFAULTS } from '../constants/records'
-import { compareDates, currentJalaliMonthEndIso, currentJalaliMonthStartIso, inCurrentMonth, isoToJalali, jalaliMonthEndIso, jalaliMonthStartIso, jalaliToIso } from '../helpers/dates'
-import { prepareRecord } from '../helpers/records'
+import { compareDates, currentJalaliMonthStartIso, inCurrentMonth, isoToJalali } from '../helpers/dates'
+import { applyRecordFilters, filterRecordsByTimeTab, prepareRecord } from '../helpers/records'
 import { getBankIcon } from '../constants/banks'
 import { useI18n } from '../i18n/I18nContext'
 
@@ -97,7 +97,7 @@ export default function RecordsPage({ type, data, updateData, initialFilter = '�
       alert('عنوان بدهی و مبلغ را وارد کنید.')
       return
     }
-    const item = prepareRecord({ ...records.editing, title: records.editing.title || 'بدهی ثبت‌شده' })
+    const item = prepareRecord({ ...records.editing, title: records.editing.title || 'بدهی ثبت‌شده' }, 'debts')
     if (item.isCheck && item.relation === 'دریافتنی') {
       const incomeChecks = buildCheckRecords(item).map(check => ({ ...check, direction: 'receivable', incomeType: 'چک دریافتی', category: 'چک دریافتی', bank: check.issuerBank || check.bank || check.receiverBank, receivedAmount: 0, status: 'دریافت نشده', tags: [...new Set([...(check.tags || []), 'چک دریافتی'])] }))
       updateData(current => ({
@@ -138,7 +138,7 @@ export default function RecordsPage({ type, data, updateData, initialFilter = '�
         return
       }
     }
-    const item = prepareRecord(records.editing?.isCheck ? { ...records.editing, title: records.editing.title || `چک دریافتی ${records.editing.person || ''}`.trim() } : records.editing)
+    const item = prepareRecord(records.editing?.isCheck ? { ...records.editing, title: records.editing.title || `چک دریافتی ${records.editing.person || ''}`.trim() } : records.editing, 'incomes')
     const incomeRecords = item.isCheck ? buildCheckRecords(item).map(check => ({ ...check, direction: 'receivable', incomeType: 'چک دریافتی', category: 'چک دریافتی', bank: check.issuerBank || check.bank || check.receiverBank, receivedAmount: 0, status: check.status || 'دریافت نشده', tags: [...new Set([...(check.tags || []), 'چک دریافتی'])] })) : [item]
     records.setEditing({ ...records.editing, ...item })
     updateData(current => ({
@@ -236,18 +236,6 @@ const buildCheckRecords = item => {
   }))
 }
 
-const SETTLED_TIME_STATUSES = ['پرداخت شده', 'تسویه‌شده', 'دریافت شده', 'لغوشده']
-const isActiveTimeRecord = item => !SETTLED_TIME_STATUSES.includes(item.status)
-const filterRecordsByTimeTab = (items, tab, type) => {
-  const monthEnd = currentJalaliMonthEndIso()
-  return items.filter(item => {
-    if (!isActiveTimeRecord(item)) return false
-    if (!item.dueDate) return tab === 'current'
-    const isFuture = compareDates(item.dueDate, monthEnd) > 0
-    return tab === 'future' ? isFuture : !isFuture
-  })
-}
-
 const filterExpensesByTimeTab = (items, tab) => {
   const monthStart = currentJalaliMonthStartIso()
   return items.filter(item => {
@@ -317,27 +305,6 @@ function ExpensePastComposition({ items, currency }) {
     </div>
   </section>
 }
-
-const recordDate = item => item.expenseDate || item.dueDate || item.startDate || item.createdAt || ''
-const isoDateFromInput = value => {
-  if (!value) return ''
-  return String(value).includes('/') ? jalaliToIso(value) : value
-}
-const applyRecordFilters = (items, filters, type) => items.filter(item => {
-  const amount = Number(item.amount || 0)
-  const date = recordDate(item)
-  const fromDate = type === 'currentExpenses' ? jalaliMonthStartIso(filters.dateFrom) : isoDateFromInput(filters.dateFrom)
-  const toDate = type === 'currentExpenses' ? jalaliMonthEndIso(filters.dateTo) : isoDateFromInput(filters.dateTo)
-  const itemBanks = [item.bank, item.issuerBank, item.receiverBank].filter(Boolean)
-  return (!filters.tagFilter || item.tags?.includes(filters.tagFilter)) &&
-    (!filters.category || item.category === filters.category) &&
-    (!filters.bank || itemBanks.includes(filters.bank)) &&
-    (!(filters.tags || []).length || (filters.tags || []).every(tag => item.tags?.includes(tag))) &&
-    (!filters.amountFrom || amount >= Number(filters.amountFrom)) &&
-    (!filters.amountTo || amount <= Number(filters.amountTo)) &&
-    (!fromDate || (date && new Date(date) >= new Date(fromDate))) &&
-    (!toDate || (date && new Date(date) <= new Date(toDate)))
-})
 
 function RecordAdvancedFilters({ open, type, data, updateData, filters, setFilters, onClose }) {
   const [categoryOpen, setCategoryOpen] = useState(false)

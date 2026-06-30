@@ -1,9 +1,13 @@
-import { isValidJalaaliDate, toGregorian, toJalaali } from 'jalaali-js'
-import { normalizeDigits } from '../utils/numberFormat'
+import jalaali from 'jalaali-js'
+import { normalizeDigits } from '../utils/numberFormat.js'
+
+const { isValidJalaaliDate, toGregorian, toJalaali } = jalaali
 
 const SETTLED = ['پرداخت شده', 'دریافت شده', 'تسویه‌شده', 'لغوشده']
 const RECURRENCE_MONTHS = { ماهانه: 1, دوماهه: 2, سه‌ماهه: 3, 'شش‌ماهه': 6, سالیانه: 12, سالانه: 12 }
 const pad = value => String(value).padStart(2, '0')
+const RECURRENCE_DAYS = { روزانه: 1, هفتگی: 7 }
+const lastGregorianDayOfMonth = (year, monthIndex) => new Date(Date.UTC(year, monthIndex + 1, 0)).getUTCDate()
 
 export function isoToJalali(value) {
   if (!value) return ''
@@ -27,7 +31,18 @@ export const normalizeJalaliInput = value => {
   return [digits.slice(0, 4), digits.slice(4, 6), digits.slice(6, 8)].filter(Boolean).join('/')
 }
 
-export const compareDates = (a, b) => new Date(a).setHours(0, 0, 0, 0) - new Date(b).setHours(0, 0, 0, 0)
+const dateOnly = value => {
+  if (!value) return ''
+  const text = String(value).trim()
+  const iso = text.match(/^(\d{4})-(\d{2})-(\d{2})/)?.[0]
+  return iso || text
+}
+export const compareDates = (a, b) => {
+  const left = new Date(`${dateOnly(a)}T00:00:00`)
+  const right = new Date(`${dateOnly(b)}T00:00:00`)
+  if (Number.isNaN(left.getTime()) || Number.isNaN(right.getTime())) return 0
+  return left.getTime() - right.getTime()
+}
 export const daysUntil = value => value ? Math.ceil(compareDates(value, new Date()) / 86400000) : Infinity
 export const isOverdue = item => daysUntil(item.dueDate) < 0 && !SETTLED.includes(item.status)
 export const isNearDue = item => daysUntil(item.dueDate) >= 0 && daysUntil(item.dueDate) <= 7 && !SETTLED.includes(item.status)
@@ -91,9 +106,38 @@ export function isDueThroughCurrentJalaliMonth(value) {
 }
 
 export function nextDueDate(item) {
-  const date = new Date(item.dueDate)
-  if (item.recurrence === 'روزانه') date.setDate(date.getDate() + 1)
-  else if (item.recurrence === 'هفتگی') date.setDate(date.getDate() + 7)
-  else if (RECURRENCE_MONTHS[item.recurrence]) date.setMonth(date.getMonth() + RECURRENCE_MONTHS[item.recurrence])
-  return date.toISOString().slice(0, 10)
+  const normalize = value => {
+    const text = String(value || '').trim()
+    if (!text) return ''
+    return text.match(/^(\d{4})-(\d{2})-(\d{2})/)?.[0] || jalaliToIso(text) || ''
+  }
+  const addInterval = (value, count = 1) => {
+    const [year, month, day] = value.split('-').map(Number)
+    const date = new Date(Date.UTC(year, month - 1, day))
+    if (Number.isNaN(date.getTime())) return ''
+    if (RECURRENCE_DAYS[item.recurrence]) {
+      date.setUTCDate(date.getUTCDate() + RECURRENCE_DAYS[item.recurrence] * count)
+      return date.toISOString().slice(0, 10)
+    }
+    if (!RECURRENCE_MONTHS[item.recurrence]) return ''
+    const targetMonth = date.getUTCMonth() + RECURRENCE_MONTHS[item.recurrence] * count
+    const targetYear = date.getUTCFullYear() + Math.floor(targetMonth / 12)
+    const monthIndex = ((targetMonth % 12) + 12) % 12
+    const targetDay = Math.min(date.getUTCDate(), lastGregorianDayOfMonth(targetYear, monthIndex))
+    const next = new Date(Date.UTC(targetYear, monthIndex, targetDay))
+    return next.toISOString().slice(0, 10)
+  }
+  const anchor = normalize(item.startDate || item.loanStartDate || item.createdAt || item.dueDate)
+  const currentDue = normalize(item.dueDate)
+  if (!anchor) return ''
+  if (!currentDue) return anchor
+  let next = anchor
+  let guard = 0
+  while (compareDates(next, currentDue) <= 0 && guard < 240) {
+    const candidate = addInterval(anchor, guard + 1)
+    if (!candidate || candidate === next) return ''
+    next = candidate
+    guard += 1
+  }
+  return next
 }

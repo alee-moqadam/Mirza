@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { RECORD_CONFIG, RECORD_DEFAULTS } from '../constants/records'
 import { currentJalaliMonthEndIso, isoToJalali, nextDueDate } from '../helpers/dates'
 import { currentMonthPayables, filterAndSortRecords, prepareRecord, recordCompletionPatch } from '../helpers/records'
+import { deriveDebtListRecords } from '../helpers/recurrence.js'
 import { useUndoAction } from './useUndoAction'
 
 const DATE_FIELDS = ['startDate', 'endDate', 'dueDate', 'expenseDate', 'loanStartDate']
@@ -38,7 +39,8 @@ export function useRecords(type, data, updateData, initialFilter = 'همه') {
   const undo = useUndoAction()
 
   const filters = type === 'currentExpenses' ? [...config.filters, ...categories.map(item => item.title)] : config.filters
-  const visibleItems = useMemo(() => filterAndSortRecords(items, filter, sort), [items, filter, sort])
+  const displayItems = useMemo(() => type === 'debts' ? deriveDebtListRecords(items) : items, [items, type])
+  const visibleItems = useMemo(() => filterAndSortRecords(displayItems, filter, sort), [displayItems, filter, sort])
   const specialItems = []
 
   const openNew = () => {
@@ -57,7 +59,7 @@ export function useRecords(type, data, updateData, initialFilter = 'همه') {
 
   const save = event => {
     event.preventDefault()
-    const item = prepareRecord(editing)
+    const item = prepareRecord(editing, type)
     updateData(current => ({
       ...current,
       [type]: current[type].some(record => record.id === item.id)
@@ -81,6 +83,16 @@ export function useRecords(type, data, updateData, initialFilter = 'همه') {
     const action = type === 'incomes' || item.relation === 'دریافتنی' ? 'دریافت' : 'تسویه'
     undo.schedule(`${action} ثبت شد`, () => updateData(current => {
       const completed = { ...item, ...recordCompletionPatch(type, item), updatedAt: new Date().toISOString() }
+      if (item.isGenerated && type === 'debts') {
+        const existing = current[type].some(record => record.id === item.id || record.recurrenceKey === item.recurrenceKey)
+        return {
+          ...current,
+          [type]: existing
+            ? current[type].map(record => record.id === item.id || record.recurrenceKey === item.recurrenceKey ? completed : record)
+            : [completed, ...current[type]],
+          histories: [{ id: crypto.randomUUID(), entityType: type, item: completed, createdAt: new Date().toISOString() }, ...current.histories],
+        }
+      }
       const nextDue = ['debts', 'incomes'].includes(type) && item.recurrence !== 'فقط یک‌بار' ? nextDueDate(item) : ''
       const canCreateNextCycle = nextDue && (item.endless || !item.endDate || new Date(nextDue) <= new Date(item.endDate))
       const nextCycle = canCreateNextCycle
