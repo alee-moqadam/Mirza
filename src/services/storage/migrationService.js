@@ -1,4 +1,5 @@
 import { readFinanceData } from '../localStorageService'
+import { normalizeLegacyFinanceData } from './normalizers'
 
 const STORAGE_KEY = 'personal-finance-persian-mvp'
 const MIGRATION_FLAG_KEY = `${STORAGE_KEY}-offline-storage-migration-v1`
@@ -9,15 +10,22 @@ const MIGRATION_LAST_FAILED_AT_KEY = `${MIGRATION_FLAG_KEY}-last-failed-at`
 let skipMigrationRetryForRuntime = false
 
 const COLLECTION_TABLE_MAP = {
-  debts: 'records',
-  incomes: 'records',
-  currentExpenses: 'records',
-  histories: 'records',
   banks: 'banks',
-  financialContacts: 'financial_contacts',
-  expenseCategories: 'categories',
-  incomeCategories: 'categories',
+  categories: 'categories',
+  financial_contacts: 'financial_contacts',
+  records: 'records',
 }
+
+const LEGACY_COLLECTIONS = [
+  'debts',
+  'incomes',
+  'currentExpenses',
+  'histories',
+  'banks',
+  'financialContacts',
+  'expenseCategories',
+  'incomeCategories',
+]
 
 export function hasLegacyLocalStorageData() {
   return Boolean(localStorage.getItem(STORAGE_KEY))
@@ -76,7 +84,7 @@ export function validateLegacyData(data) {
     }
   }
 
-  const warnings = Object.keys(COLLECTION_TABLE_MAP)
+  const warnings = LEGACY_COLLECTIONS
     .filter(collection => data[collection] && !Array.isArray(data[collection]))
     .map(collection => `${collection} is not an array and will be skipped.`)
 
@@ -88,15 +96,7 @@ export function validateLegacyData(data) {
 }
 
 export function normalizeLegacyData(data) {
-  const normalized = { ...data }
-
-  Object.keys(COLLECTION_TABLE_MAP).forEach(collection => {
-    normalized[collection] = Array.isArray(data?.[collection])
-      ? data[collection].map(item => normalizeLegacyEntity(item, collection))
-      : []
-  })
-
-  return normalized
+  return normalizeLegacyFinanceData(data)
 }
 
 export async function writeNormalizedDataToSQLite(normalizedData) {
@@ -217,35 +217,12 @@ async function runMigrationPipeline() {
   return markMigrationCompleted()
 }
 
-function normalizeLegacyEntity(item = {}, collection) {
-  const now = new Date().toISOString()
-  const createdAt = item.createdAt || item.updatedAt || now
-  const updatedAt = item.updatedAt || createdAt
-
-  return {
-    ...item,
-    localId: item.localId || item.id || createFallbackLocalId(collection),
-    serverId: item.serverId || null,
-    createdAt,
-    updatedAt,
-    deletedAt: item.deletedAt || null,
-    syncStatus: item.syncStatus || 'pending',
-    lastSyncedAt: item.lastSyncedAt || null,
-    version: Number(item.version || 1),
-    legacyCollection: collection,
-  }
-}
-
 function getMigratableEntities(data = {}) {
-  return Object.entries(COLLECTION_TABLE_MAP).flatMap(([collection, tableName]) => (
-    Array.isArray(data[collection])
-      ? data[collection].map(entity => ({ tableName, entity }))
+  return Object.entries(COLLECTION_TABLE_MAP).flatMap(([normalizedCollection, tableName]) => (
+    Array.isArray(data[normalizedCollection])
+      ? data[normalizedCollection].map(entity => ({ tableName, entity }))
       : []
   ))
-}
-
-function createFallbackLocalId(prefix) {
-  return `${prefix || 'legacy'}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
 }
 
 function recordMigrationFailure(reason) {
