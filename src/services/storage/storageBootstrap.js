@@ -31,6 +31,18 @@ export function getStorageInitializationStatus() {
   return { ...initializationStatus }
 }
 
+export function __resetStorageBootstrapForTests() {
+  initializationPromise = null
+  initializationStatus = {
+    ready: false,
+    initialized: false,
+    inProgress: false,
+    sqlite: null,
+    migration: null,
+    error: null,
+  }
+}
+
 async function runInitialization() {
   try {
     const sqlite = await initializeLocalDatabase()

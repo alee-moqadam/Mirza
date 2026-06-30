@@ -1,5 +1,5 @@
 import { readFinanceData } from '../localStorageService.js'
-import { normalizeLegacyFinanceData } from './normalizers'
+import { normalizeLegacyFinanceData } from './normalizers/index.js'
 
 const STORAGE_KEY = 'personal-finance-persian-mvp'
 const MIGRATION_FLAG_KEY = `${STORAGE_KEY}-offline-storage-migration-v1`
