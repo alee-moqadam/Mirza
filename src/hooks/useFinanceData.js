@@ -6,7 +6,11 @@ import { readFinanceData, restoreSampleData, writeFinanceData } from '../service
 export function useFinanceData() {
   const [data, setData] = useState(readFinanceData)
 
-  useEffect(() => writeFinanceData(data), [data])
+  useEffect(() => {
+  Promise.resolve(writeFinanceData(data)).catch((error) => {
+    console.error('Failed to write finance data:', error)
+  })
+}, [data])
   useEffect(() => {
     const sent = new Set(data.notificationSettings?.sentIds || [])
     const candidates = (data.debts || []).flatMap(item => {
