@@ -1,9 +1,5 @@
-import {
-  readFinanceData as readLocalFinanceData,
-  restoreSampleData as restoreLocalSampleData,
-  writeFinanceData as writeLocalFinanceData,
-} from '../localStorageService'
 import { runSafeMigration } from './migrationService'
+import * as localStorageDriver from './storageDrivers/localStorageDriver'
 
 export const SYNC_STATUS = {
   PENDING: 'pending',
@@ -24,6 +20,12 @@ const RECORD_COLLECTIONS = [
   'financialGoals',
   'notifications',
 ]
+
+// Driver layer allows a future switch from localStorage to SQLite without
+// changing the repository API. SQLite is not active yet; migration will be
+// implemented in a later step.
+const ACTIVE_STORAGE_DRIVER = 'localStorage'
+const activeDriver = localStorageDriver
 
 const nowIso = () => new Date().toISOString()
 const createFallbackLocalId = () => `local-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
@@ -61,12 +63,12 @@ export function normalizeStorageData(data = {}) {
 
 export function loadFinanceData() {
   runSafeMigration()
-  return normalizeStorageData(readLocalFinanceData())
+  return normalizeStorageData(activeDriver.readFinanceData())
 }
 
 export function saveFinanceData(data) {
   const normalized = normalizeStorageData(data)
-  writeLocalFinanceData(normalized)
+  activeDriver.writeFinanceData(normalized)
   return normalized
 }
 
@@ -77,7 +79,7 @@ export function updateFinanceData(updater) {
 }
 
 export function resetFinanceData() {
-  return normalizeStorageData(restoreLocalSampleData())
+  return normalizeStorageData(activeDriver.restoreSampleData())
 }
 
 export function getRecords(collection) {
