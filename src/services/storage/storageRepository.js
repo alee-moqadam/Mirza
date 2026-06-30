@@ -76,6 +76,11 @@ export function readDomainData() {
   return normalizeDomainData(executeRead(driver))
 }
 
+export async function readDomainDataAsync() {
+  const driver = getActiveDriver()
+  return normalizeDomainData(await executeReadAsync(driver))
+}
+
 export function writeDomainData(data) {
   const driver = getActiveDriver()
   const normalized = normalizeDomainData(data)
@@ -83,10 +88,23 @@ export function writeDomainData(data) {
   return normalized
 }
 
+export async function writeDomainDataAsync(data) {
+  const driver = getActiveDriver()
+  const normalized = normalizeDomainData(data)
+  await executeWriteAsync(normalized, driver)
+  return normalized
+}
+
 export function updateDomainData(updater) {
   const current = readDomainData()
   const next = typeof updater === 'function' ? updater(current) : updater
   return writeDomainData(next)
+}
+
+export async function updateDomainDataAsync(updater) {
+  const current = await readDomainDataAsync()
+  const next = typeof updater === 'function' ? await updater(current) : updater
+  return writeDomainDataAsync(next)
 }
 
 export function readFinanceData() {
@@ -110,6 +128,11 @@ export function getRecords(collection) {
   return Array.isArray(data[collection]) ? data[collection] : []
 }
 
+export async function getRecordsAsync(collection) {
+  const data = await readDomainDataAsync()
+  return Array.isArray(data[collection]) ? data[collection] : []
+}
+
 export function saveRecord(collection, record) {
   return updateDomainData(current => {
     const normalized = normalizeStorageRecord(record)
@@ -120,8 +143,34 @@ export function saveRecord(collection, record) {
   })
 }
 
+export async function saveRecordAsync(collection, record) {
+  return updateDomainDataAsync(current => {
+    const normalized = normalizeStorageRecord(record)
+    return {
+      ...current,
+      [collection]: [normalized, ...getCollectionWithoutRecord(current, collection, normalized)],
+    }
+  })
+}
+
 export function updateRecord(collection, recordId, patch) {
   return updateDomainData(current => ({
+    ...current,
+    [collection]: (current[collection] || []).map(record => {
+      if (record.id !== recordId && record.localId !== recordId) return record
+      const nextPatch = typeof patch === 'function' ? patch(record) : patch
+      return normalizeStorageRecord({
+        ...record,
+        ...nextPatch,
+        updatedAt: nowIso(),
+        version: Number(record.version || 1) + 1,
+      })
+    }),
+  }))
+}
+
+export async function updateRecordAsync(collection, recordId, patch) {
+  return updateDomainDataAsync(current => ({
     ...current,
     [collection]: (current[collection] || []).map(record => {
       if (record.id !== recordId && record.localId !== recordId) return record
@@ -149,13 +198,35 @@ export function deleteRecord(collection, recordId, { softDelete = false } = {}) 
   }))
 }
 
+export async function deleteRecordAsync(collection, recordId, { softDelete = false } = {}) {
+  return updateDomainDataAsync(current => ({
+    ...current,
+    [collection]: softDelete
+      ? (current[collection] || []).map(record => (
+        record.id === recordId || record.localId === recordId
+          ? normalizeStorageRecord({ ...record, deletedAt: nowIso(), syncStatus: SYNC_STATUS.DELETED })
+          : record
+      ))
+      : (current[collection] || []).filter(record => record.id !== recordId && record.localId !== recordId),
+  }))
+}
+
 export function getSettings() {
   const data = readDomainData()
   return data.settings || {}
 }
 
+export async function getSettingsAsync() {
+  const data = await readDomainDataAsync()
+  return data.settings || {}
+}
+
 export function saveSettings(settings) {
   return updateDomainData(current => ({ ...current, settings: { ...(current.settings || {}), ...settings } }))
+}
+
+export async function saveSettingsAsync(settings) {
+  return updateDomainDataAsync(current => ({ ...current, settings: { ...(current.settings || {}), ...settings } }))
 }
 
 export function getActiveDriver() {
@@ -193,6 +264,24 @@ export function executeWrite(data, driver = getActiveDriver(), methodName = 'wri
   }
 
   return driver.driver[methodName](data)
+}
+
+export async function executeReadAsync(driver = getActiveDriver(), methodName = 'readDomainData') {
+  const mode = getDriverMode(driver)
+
+  if (mode.supportsAsync) return driver.driver[methodName]()
+  if (mode.supportsSync) return Promise.resolve(executeRead(driver, methodName))
+
+  throw new Error(`Storage driver "${mode.name}" does not support reads yet.`)
+}
+
+export async function executeWriteAsync(data, driver = getActiveDriver(), methodName = 'writeDomainData') {
+  const mode = getDriverMode(driver)
+
+  if (mode.supportsAsync) return driver.driver[methodName](data)
+  if (mode.supportsSync) return Promise.resolve(executeWrite(data, driver, methodName))
+
+  throw new Error(`Storage driver "${mode.name}" does not support writes yet.`)
 }
 
 export function __setStorageDriverForTests(name, driverConfig) {

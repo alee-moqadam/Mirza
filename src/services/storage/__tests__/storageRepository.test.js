@@ -4,14 +4,23 @@ import {
   __resetStorageDriverForTests,
   __setStorageDriverForTests,
   deleteRecord,
+  deleteRecordAsync,
   getRecords,
+  getRecordsAsync,
   getSettings,
+  getSettingsAsync,
   readDomainData,
+  readDomainDataAsync,
   saveRecord,
+  saveRecordAsync,
   saveSettings,
+  saveSettingsAsync,
   updateDomainData,
+  updateDomainDataAsync,
   updateRecord,
+  updateRecordAsync,
   writeDomainData,
+  writeDomainDataAsync,
 } from '../storageRepository.js'
 
 const baseState = () => ({
@@ -233,4 +242,87 @@ test('invalid driver data is handled as an empty domain object', () => {
   installDriver({ read: () => null })
 
   assert.deepEqual(readDomainData(), {})
+})
+
+test('async APIs wrap sync drivers safely', async () => {
+  const read = await readDomainDataAsync()
+  assert.equal(read.records[0].localId, 'record-1')
+
+  const written = await writeDomainDataAsync({ records: [{ title: 'Async Write' }] })
+  assert.equal(writes.length, 1)
+  assert.equal(written.records[0].title, 'Async Write')
+  assert.equal(written.records[0].version, 1)
+
+  const updatedDomain = await updateDomainDataAsync(current => ({
+    ...current,
+    records: current.records.map(record => ({ ...record, title: 'Async Updated' })),
+  }))
+  assert.equal(updatedDomain.records[0].title, 'Async Updated')
+})
+
+test('async record APIs wrap sync drivers safely', async () => {
+  const saved = await saveRecordAsync('records', { title: 'Async Insert', amount: 10 })
+  assert.equal(saved.records[0].title, 'Async Insert')
+  assert.equal(saved.records.length, 2)
+
+  const patched = await updateRecordAsync('records', saved.records[0].localId, { amount: 20 })
+  assert.equal(patched.records[0].amount, 20)
+  assert.equal(patched.records[0].version, 2)
+
+  const records = await getRecordsAsync('records')
+  assert.equal(records.length, 2)
+
+  const softDeleted = await deleteRecordAsync('records', saved.records[0].localId, { softDelete: true })
+  assert.equal(softDeleted.records[0].syncStatus, 'deleted')
+})
+
+test('async settings APIs wrap sync drivers safely', async () => {
+  assert.deepEqual(await getSettingsAsync(), { currency: 'IRR' })
+
+  const updated = await saveSettingsAsync({ theme: 'dark' })
+  assert.deepEqual(updated.settings, {
+    currency: 'IRR',
+    theme: 'dark',
+  })
+})
+
+test('async APIs await async drivers', async () => {
+  let asyncWriteCalled = false
+  __setStorageDriverForTests('test', {
+    name: 'test',
+    supportsSync: false,
+    supportsAsync: true,
+    driver: {
+      readDomainData: async () => state,
+      writeDomainData: async data => {
+        asyncWriteCalled = true
+        writes.push(data)
+        state = data
+      },
+    },
+  })
+
+  const read = await readDomainDataAsync()
+  assert.equal(read.records[0].localId, 'record-1')
+
+  const saved = await saveRecordAsync('records', { title: 'Async Driver Insert' })
+  assert.equal(asyncWriteCalled, true)
+  assert.equal(saved.records[0].title, 'Async Driver Insert')
+  assert.equal(writes.length, 1)
+})
+
+test('async APIs reject when async driver throws', async () => {
+  __setStorageDriverForTests('test', {
+    name: 'test',
+    supportsSync: false,
+    supportsAsync: true,
+    driver: {
+      readDomainData: async () => {
+        throw new Error('async read failed')
+      },
+      writeDomainData: async () => {},
+    },
+  })
+
+  await assert.rejects(() => readDomainDataAsync(), /async read failed/)
 })
