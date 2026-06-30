@@ -1,4 +1,4 @@
-import { readFinanceData } from '../localStorageService'
+import { readFinanceData } from '../localStorageService.js'
 import { normalizeLegacyFinanceData } from './normalizers'
 
 const STORAGE_KEY = 'personal-finance-persian-mvp'
@@ -104,7 +104,7 @@ export async function writeNormalizedDataToSQLite(normalizedData) {
     const {
       initializeLocalDatabase,
       insertEntity,
-    } = await import('./localDatabaseService')
+    } = await import('./localDatabaseService.js')
     const status = await initializeLocalDatabase()
 
     if (!status.ready) {

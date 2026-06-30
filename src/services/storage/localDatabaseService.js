@@ -5,7 +5,7 @@ import {
   saveRecord as saveRepositoryRecord,
   saveSettings as saveRepositorySettings,
   updateRecord as updateRepositoryRecord,
-} from './storageRepository'
+} from './storageRepository.js'
 import { Capacitor } from '@capacitor/core'
 
 export const LOCAL_DATABASE_TABLES = {

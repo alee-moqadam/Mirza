@@ -3,8 +3,9 @@ import {
   initializeLocalDatabase,
   insertEntity,
   LOCAL_DATABASE_TABLES,
-} from '../localDatabaseService'
-import { normalizeLegacyFinanceData } from '../normalizers'
+} from '../localDatabaseService.js'
+import { createEmptyLegacyFinanceData, toLegacyFinanceData } from '../adapters/legacyFinanceAdapter.js'
+import { normalizeLegacyFinanceData } from '../normalizers/index.js'
 
 const notReadyResponse = {
   ready: false,
@@ -80,6 +81,75 @@ export async function writeFinanceData(data) {
   }
 }
 
+export async function readDomainData() {
+  try {
+    const status = await initializeLocalDatabase()
+    if (!status.ready) {
+      return {
+        records: [],
+        banks: [],
+        financial_contacts: [],
+        categories: [],
+      }
+    }
+
+    const [records, banks, contacts, categories] = await Promise.all([
+      getEntities(LOCAL_DATABASE_TABLES.RECORDS),
+      getEntities(LOCAL_DATABASE_TABLES.BANKS),
+      getEntities(LOCAL_DATABASE_TABLES.FINANCIAL_CONTACTS),
+      getEntities(LOCAL_DATABASE_TABLES.CATEGORIES),
+    ])
+
+    return {
+      records: records.entities || [],
+      banks: banks.entities || [],
+      financial_contacts: contacts.entities || [],
+      categories: categories.entities || [],
+    }
+  } catch {
+    return {
+      records: [],
+      banks: [],
+      financial_contacts: [],
+      categories: [],
+    }
+  }
+}
+
+export async function writeDomainData(data = {}) {
+  try {
+    const status = await initializeLocalDatabase()
+    if (!status.ready) {
+      return {
+        ...notReadyResponse,
+        driver: status.driver || notReadyResponse.driver,
+        saved: false,
+      }
+    }
+
+    const results = []
+    for (const { tableName, entity } of getWritableEntities(data)) {
+      results.push(await insertEntity(tableName, entity))
+    }
+
+    const failed = results.filter(result => !result.success)
+    return {
+      ready: true,
+      driver: 'sqlite',
+      active: false,
+      saved: failed.length === 0,
+      written: results.length - failed.length,
+      failed: failed.length,
+    }
+  } catch (error) {
+    return {
+      ...notReadyResponse,
+      saved: false,
+      error,
+    }
+  }
+}
+
 export function restoreSampleData() {
   return {
     ...notReadyResponse,
@@ -98,32 +168,11 @@ export async function writeTableEntity(tableName, entity) {
 export { LOCAL_DATABASE_TABLES }
 
 export function createEmptyFinanceDataShape() {
-  return {
-    debts: [],
-    incomes: [],
-    currentExpenses: [],
-    histories: [],
-    banks: [],
-    financialContacts: [],
-    expenseCategories: [],
-    incomeCategories: [],
-    financialGoals: [],
-    notifications: [],
-  }
+  return createEmptyLegacyFinanceData()
 }
 
 export function mapDomainDataToLegacyShape(domainData = {}) {
-  const empty = createEmptyFinanceDataShape()
-  const categories = Array.isArray(domainData.categories) ? domainData.categories : []
-
-  return {
-    ...empty,
-    histories: Array.isArray(domainData.records) ? domainData.records : [],
-    banks: Array.isArray(domainData.banks) ? domainData.banks : [],
-    financialContacts: Array.isArray(domainData.financial_contacts) ? domainData.financial_contacts : [],
-    expenseCategories: categories.filter(category => category.type === 'expense' || !category.type),
-    incomeCategories: categories.filter(category => category.type === 'income'),
-  }
+  return toLegacyFinanceData(domainData)
 }
 
 function getWritableEntities(normalizedData = {}) {
