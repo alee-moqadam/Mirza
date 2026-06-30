@@ -1,4 +1,4 @@
-import { normalizeSyncMetadata, normalizeText, preservePayload } from './baseNormalizer'
+import { normalizeSyncMetadata, normalizeText, preservePayload } from './baseNormalizer.js'
 
 export function normalizeContact(entity = {}) {
   return {

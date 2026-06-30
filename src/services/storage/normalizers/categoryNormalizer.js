@@ -1,4 +1,4 @@
-import { normalizeBoolean, normalizeNumber, normalizeSyncMetadata, normalizeText, preservePayload } from './baseNormalizer'
+import { normalizeBoolean, normalizeNumber, normalizeSyncMetadata, normalizeText, preservePayload } from './baseNormalizer.js'
 
 export function normalizeCategory(entity = {}) {
   return {

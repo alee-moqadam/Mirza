@@ -1,4 +1,4 @@
-import { normalizeDate, normalizeNumber, normalizeSyncMetadata, normalizeText, preservePayload } from './baseNormalizer'
+import { normalizeDate, normalizeNumber, normalizeSyncMetadata, normalizeText, preservePayload } from './baseNormalizer.js'
 
 const ALLOWED_RECORD_TYPES = [
   'income',

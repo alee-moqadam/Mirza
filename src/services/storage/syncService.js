@@ -1,5 +1,5 @@
-import { SYNC_STATUS } from './storageRepository'
-import { getPendingChanges, updateQueueItemStatus } from './syncQueueService'
+import { SYNC_STATUS } from './storageRepository.js'
+import { getPendingChanges, updateQueueItemStatus } from './syncQueueService.js'
 
 const SYNC_ENABLED = false
 

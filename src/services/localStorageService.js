@@ -1,5 +1,5 @@
-import { sampleData } from '../data/sampleData'
-import { APP_DATA_VERSION } from '../config/app'
+import { sampleData } from '../data/sampleData.js'
+import { APP_DATA_VERSION } from '../config/app.js'
 
 const STORAGE_KEY = 'personal-finance-persian-mvp'
 const BACKUP_KEY = `${STORAGE_KEY}-pre-v2-backup`

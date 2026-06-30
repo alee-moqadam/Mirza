@@ -1,4 +1,4 @@
-import { SYNC_STATUS } from './storageRepository'
+import { SYNC_STATUS } from './storageRepository.js'
 
 const queue = []
 
