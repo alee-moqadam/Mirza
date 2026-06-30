@@ -1,23 +1,24 @@
-export * from './baseNormalizer'
-export { normalizeRecord } from './recordNormalizer'
-export { normalizeLoan } from './loanNormalizer'
-export { normalizeInstallment } from './installmentNormalizer'
-export { normalizeCheck } from './checkNormalizer'
-export { normalizeBank } from './bankNormalizer'
-export { normalizeBankAccount } from './bankAccountNormalizer'
-export { normalizeCategory } from './categoryNormalizer'
-export { normalizeContact } from './contactNormalizer'
-export { normalizeSettings } from './settingsNormalizer'
+export * from './baseNormalizer.js'
+export { normalizeRecord } from './recordNormalizer.js'
+export { normalizeLoan } from './loanNormalizer.js'
+export { normalizeInstallment } from './installmentNormalizer.js'
+export { normalizeCheck } from './checkNormalizer.js'
+export { normalizeBank } from './bankNormalizer.js'
+export { normalizeBankAccount } from './bankAccountNormalizer.js'
+export { normalizeCategory } from './categoryNormalizer.js'
+export { normalizeContact } from './contactNormalizer.js'
+export { normalizeSettings } from './settingsNormalizer.js'
+export { fromLegacyFinanceData as normalizeLegacyFinanceData } from '../adapters/legacyFinanceAdapter.js'
 
-import { normalizeBank } from './bankNormalizer'
-import { normalizeBankAccount } from './bankAccountNormalizer'
-import { normalizeCategory } from './categoryNormalizer'
-import { normalizeCheck } from './checkNormalizer'
-import { normalizeContact } from './contactNormalizer'
-import { normalizeInstallment } from './installmentNormalizer'
-import { normalizeLoan } from './loanNormalizer'
-import { normalizeRecord } from './recordNormalizer'
-import { normalizeSettings } from './settingsNormalizer'
+import { normalizeBank } from './bankNormalizer.js'
+import { normalizeBankAccount } from './bankAccountNormalizer.js'
+import { normalizeCategory } from './categoryNormalizer.js'
+import { normalizeCheck } from './checkNormalizer.js'
+import { normalizeContact } from './contactNormalizer.js'
+import { normalizeInstallment } from './installmentNormalizer.js'
+import { normalizeLoan } from './loanNormalizer.js'
+import { normalizeRecord } from './recordNormalizer.js'
+import { normalizeSettings } from './settingsNormalizer.js'
 
 const NORMALIZERS = {
   record: normalizeRecord,
@@ -40,17 +41,6 @@ const NORMALIZERS = {
   settings: normalizeSettings,
 }
 
-const LEGACY_COLLECTION_MAP = {
-  debts: { target: 'records', normalizer: normalizeRecord },
-  incomes: { target: 'records', normalizer: normalizeRecord },
-  currentExpenses: { target: 'records', normalizer: normalizeRecord },
-  histories: { target: 'records', normalizer: normalizeRecord },
-  banks: { target: 'banks', normalizer: normalizeBank },
-  financialContacts: { target: 'financial_contacts', normalizer: normalizeContact },
-  expenseCategories: { target: 'categories', normalizer: normalizeCategory },
-  incomeCategories: { target: 'categories', normalizer: normalizeCategory },
-}
-
 export function normalizeEntity(entityType, entity) {
   const normalizer = NORMALIZERS[entityType]
   return normalizer ? normalizer(entity) : normalizeRecord(entity)
@@ -60,24 +50,4 @@ export function normalizeCollection(entityType, collection) {
   return Array.isArray(collection)
     ? collection.map(entity => normalizeEntity(entityType, entity))
     : []
-}
-
-export function normalizeLegacyFinanceData(data = {}) {
-  return Object.entries(LEGACY_COLLECTION_MAP).reduce((result, [legacyCollection, config]) => {
-    const collection = Array.isArray(data?.[legacyCollection]) ? data[legacyCollection] : []
-    const normalized = collection.map(entity => config.normalizer({
-      ...entity,
-      legacyCollection,
-    }))
-
-    return {
-      ...result,
-      [config.target]: [...(result[config.target] || []), ...normalized],
-    }
-  }, {
-    records: [],
-    banks: [],
-    financial_contacts: [],
-    categories: [],
-  })
 }

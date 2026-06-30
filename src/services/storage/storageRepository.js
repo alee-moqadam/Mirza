@@ -1,5 +1,4 @@
-import { runSafeMigration } from './migrationService'
-import * as localStorageDriver from './storageDrivers/localStorageDriver'
+import * as localStorageDriver from './storageDrivers/localStorageDriver.js'
 
 export const SYNC_STATUS = {
   PENDING: 'pending',
@@ -8,24 +7,32 @@ export const SYNC_STATUS = {
   DELETED: 'deleted',
 }
 
-const RECORD_COLLECTIONS = [
-  'debts',
-  'incomes',
-  'currentExpenses',
-  'histories',
+const DOMAIN_COLLECTIONS = [
+  'records',
+  'loans',
+  'installments',
+  'checks',
   'banks',
-  'financialContacts',
-  'expenseCategories',
-  'incomeCategories',
-  'financialGoals',
-  'notifications',
+  'bank_accounts',
+  'categories',
+  'financial_contacts',
+  'settings',
+  'sync_queue',
 ]
 
 // Driver layer allows a future switch from localStorage to SQLite without
 // changing the repository API. SQLite is not active yet; migration will be
 // implemented in a later step.
 const ACTIVE_STORAGE_DRIVER = 'localStorage'
-const activeDriver = localStorageDriver
+const STORAGE_DRIVERS = {
+  localStorage: {
+    name: 'localStorage',
+    driver: localStorageDriver,
+    supportsSync: true,
+    supportsAsync: false,
+  },
+}
+let activeStorageDriverName = ACTIVE_STORAGE_DRIVER
 
 const nowIso = () => new Date().toISOString()
 const createFallbackLocalId = () => `local-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
@@ -52,61 +59,85 @@ export function normalizeStorageRecord(item = {}) {
   }
 }
 
-export function normalizeStorageData(data = {}) {
-  return RECORD_COLLECTIONS.reduce((result, collection) => ({
-    ...result,
-    [collection]: Array.isArray(result[collection])
-      ? result[collection].map(normalizeStorageRecord)
-      : result[collection],
-  }), { ...data })
+export function normalizeDomainData(data = {}) {
+  return DOMAIN_COLLECTIONS.reduce((result, collection) => {
+    if (!Object.prototype.hasOwnProperty.call(result, collection)) return result
+    return {
+      ...result,
+      [collection]: Array.isArray(result[collection])
+        ? result[collection].map(normalizeStorageRecord)
+        : result[collection],
+    }
+  }, data && typeof data === 'object' ? { ...data } : {})
 }
 
-export function loadFinanceData() {
-  runSafeMigration()
-  return normalizeStorageData(activeDriver.readFinanceData())
+export function readDomainData() {
+  const driver = getActiveDriver()
+  return normalizeDomainData(executeRead(driver))
 }
 
-export function saveFinanceData(data) {
-  const normalized = normalizeStorageData(data)
-  activeDriver.writeFinanceData(normalized)
+export function writeDomainData(data) {
+  const driver = getActiveDriver()
+  const normalized = normalizeDomainData(data)
+  executeWrite(normalized, driver)
   return normalized
 }
 
-export function updateFinanceData(updater) {
-  const current = loadFinanceData()
+export function updateDomainData(updater) {
+  const current = readDomainData()
   const next = typeof updater === 'function' ? updater(current) : updater
-  return saveFinanceData(next)
+  return writeDomainData(next)
 }
 
-export function resetFinanceData() {
-  return normalizeStorageData(activeDriver.restoreSampleData())
+export function readFinanceData() {
+  const driver = getActiveDriver()
+  return executeRead(driver, 'readFinanceData')
+}
+
+export function writeFinanceData(data) {
+  const driver = getActiveDriver()
+  executeWrite(data, driver, 'writeFinanceData')
+  return data
+}
+
+export function restoreSampleData() {
+  const driver = getActiveDriver()
+  return executeRead(driver, 'restoreSampleData')
 }
 
 export function getRecords(collection) {
-  const data = loadFinanceData()
+  const data = readDomainData()
   return Array.isArray(data[collection]) ? data[collection] : []
 }
 
 export function saveRecord(collection, record) {
-  return updateFinanceData(current => ({
-    ...current,
-    [collection]: [normalizeStorageRecord(record), ...getCollectionWithoutRecord(current, collection, record)],
-  }))
+  return updateDomainData(current => {
+    const normalized = normalizeStorageRecord(record)
+    return {
+      ...current,
+      [collection]: [normalized, ...getCollectionWithoutRecord(current, collection, normalized)],
+    }
+  })
 }
 
 export function updateRecord(collection, recordId, patch) {
-  return updateFinanceData(current => ({
+  return updateDomainData(current => ({
     ...current,
     [collection]: (current[collection] || []).map(record => {
       if (record.id !== recordId && record.localId !== recordId) return record
       const nextPatch = typeof patch === 'function' ? patch(record) : patch
-      return normalizeStorageRecord({ ...record, ...nextPatch, updatedAt: nowIso() })
+      return normalizeStorageRecord({
+        ...record,
+        ...nextPatch,
+        updatedAt: nowIso(),
+        version: Number(record.version || 1) + 1,
+      })
     }),
   }))
 }
 
 export function deleteRecord(collection, recordId, { softDelete = false } = {}) {
-  return updateFinanceData(current => ({
+  return updateDomainData(current => ({
     ...current,
     [collection]: softDelete
       ? (current[collection] || []).map(record => (
@@ -119,25 +150,65 @@ export function deleteRecord(collection, recordId, { softDelete = false } = {}) 
 }
 
 export function getSettings() {
-  const data = loadFinanceData()
-  return {
-    notificationSettings: data.notificationSettings,
-    lockSettings: data.lockSettings,
-    banks: data.banks || [],
-    financialContacts: data.financialContacts || [],
-    expenseCategories: data.expenseCategories || [],
-    incomeCategories: data.incomeCategories || [],
-  }
+  const data = readDomainData()
+  return data.settings || {}
 }
 
 export function saveSettings(settings) {
-  return updateFinanceData(current => ({ ...current, ...settings }))
+  return updateDomainData(current => ({ ...current, settings: { ...(current.settings || {}), ...settings } }))
 }
 
-export const readFinanceData = loadFinanceData
-export const writeFinanceData = saveFinanceData
-export const restoreSampleData = resetFinanceData
+export function getActiveDriver() {
+  return STORAGE_DRIVERS[activeStorageDriverName] || STORAGE_DRIVERS.localStorage
+}
+
+export function getDriverMode(driver = getActiveDriver()) {
+  return {
+    name: driver.name,
+    supportsAsync: Boolean(driver.supportsAsync),
+    supportsSync: Boolean(driver.supportsSync),
+  }
+}
+
+export function executeRead(driver = getActiveDriver(), methodName = 'readDomainData') {
+  const mode = getDriverMode(driver)
+
+  // TODO: When the repository becomes async-aware, allow supportsAsync drivers
+  // here and update hooks to await repository reads through an initialization
+  // state. Until then, reads must remain synchronous for UI compatibility.
+  if (!mode.supportsSync) {
+    throw new Error(`Storage driver "${mode.name}" does not support synchronous reads yet.`)
+  }
+
+  return driver.driver[methodName]()
+}
+
+export function executeWrite(data, driver = getActiveDriver(), methodName = 'writeDomainData') {
+  const mode = getDriverMode(driver)
+
+  // TODO: Future SQLite activation should route writes through an async
+  // repository API with explicit loading/error states before this guard changes.
+  if (!mode.supportsSync) {
+    throw new Error(`Storage driver "${mode.name}" does not support synchronous writes yet.`)
+  }
+
+  return driver.driver[methodName](data)
+}
+
+export function __setStorageDriverForTests(name, driverConfig) {
+  STORAGE_DRIVERS[name] = driverConfig
+  activeStorageDriverName = name
+}
+
+export function __resetStorageDriverForTests() {
+  activeStorageDriverName = ACTIVE_STORAGE_DRIVER
+  delete STORAGE_DRIVERS.test
+}
 
 function getCollectionWithoutRecord(data, collection, record) {
-  return (data[collection] || []).filter(item => item.id !== record.id && item.localId !== record.localId)
+  return (data[collection] || []).filter(item => {
+    const sameId = record.id && item.id === record.id
+    const sameLocalId = record.localId && item.localId === record.localId
+    return !sameId && !sameLocalId
+  })
 }
