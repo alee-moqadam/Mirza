@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react'
 import { RECORD_CONFIG, RECORD_DEFAULTS } from '../constants/records'
 import { currentJalaliMonthEndIso, isoToJalali, nextDueDate } from '../helpers/dates'
-import { currentMonthPayables, filterAndSortRecords, prepareRecord, recordCompletionPatch } from '../helpers/records'
-import { deriveDebtListRecords } from '../helpers/recurrence.js'
+import { cleanRestoredRecord, createDeletedHistoryItem, currentMonthPayables, filterAndSortRecords, prepareRecord, recordCompletionPatch } from '../helpers/records'
+import { deriveDebtListRecords, getRecurringGroupForRecord, isRecurringChild, isRecurringParent, restoreRecurringOccurrence } from '../helpers/recurrence.js'
 import { useUndoAction } from './useUndoAction'
 
 const DATE_FIELDS = ['startDate', 'endDate', 'dueDate', 'expenseDate', 'loanStartDate']
@@ -54,7 +54,15 @@ export function useRecords(type, data, updateData, initialFilter = 'همه') {
       contacts: [],
     })
   }
-  const openEdit = item => { setDetail(null); setEditing(toEditorItem(item)) }
+  const openEdit = item => {
+    setDetail(null)
+    if (type === 'debts' && isRecurringChild(item)) {
+      const { parent } = getRecurringGroupForRecord(item, items)
+      setEditing(toEditorItem(parent || item))
+      return
+    }
+    setEditing(toEditorItem(item))
+  }
   const closeEditor = () => setEditing(null)
 
   const save = event => {
@@ -70,11 +78,13 @@ export function useRecords(type, data, updateData, initialFilter = 'همه') {
   }
 
   const remove = item => {
-    if (!confirm('این مورد به تاریخچه منتقل شود؟')) return
+    if (!confirm('این مورد به موارد حذف‌شده منتقل شود؟')) return
     updateData(current => ({
       ...current,
-      [type]: current[type].filter(record => record.id !== item.id),
-      histories: [{ id: crypto.randomUUID(), entityType: type, item, createdAt: new Date().toISOString() }, ...current.histories],
+      [type]: type === 'debts' && (isRecurringChild(item) || isRecurringParent(item))
+        ? deactivateRecurringDebtSeries(current[type], item)
+        : current[type].filter(record => record.id !== item.id),
+      histories: [createDeletedHistoryItem(type, item), ...current.histories],
     }))
     setDetail(null)
   }
@@ -98,10 +108,12 @@ export function useRecords(type, data, updateData, initialFilter = 'همه') {
       const nextCycle = canCreateNextCycle
         ? [{ ...item, id: crypto.randomUUID(), dueDate: nextDue, status: type === 'incomes' ? 'دریافت نشده' : 'فعال', receivedAmount: type === 'incomes' ? 0 : item.receivedAmount, parentId: item.parentId || item.id, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }]
         : []
+      const remaining = current[type].some(record => record.id === item.id)
+        ? current[type].map(record => record.id === item.id ? completed : record)
+        : [completed, ...current[type]]
       return {
         ...current,
-        [type]: [...nextCycle, ...current[type].filter(record => record.id !== item.id)],
-        histories: [{ id: crypto.randomUUID(), entityType: type, item: completed, createdAt: new Date().toISOString() }, ...current.histories],
+        [type]: [...nextCycle, ...remaining],
       }
     }))
     setDetail(null)
@@ -133,11 +145,17 @@ export function useRecords(type, data, updateData, initialFilter = 'همه') {
     setDetail(null)
   }
 
-  const restoreHistory = history => updateData(current => ({
-    ...current,
-    [type]: [history.item, ...current[type]],
-    histories: current.histories.filter(item => item.id !== history.id),
-  }))
+  const restoreHistory = history => updateData(current => {
+    const restoredItem = cleanRestoredRecord(history.item)
+    const restoredRecords = type === 'debts' && isRecurringChild(restoredItem)
+      ? restoreRecurringOccurrence({ records: current[type], targetRecord: restoredItem })
+      : [restoredItem, ...current[type]]
+    return {
+      ...current,
+      [type]: restoredRecords,
+      histories: current.histories.filter(item => item.id !== history.id),
+    }
+  })
 
   const editHistory = history => {
     restoreHistory(history)
@@ -156,4 +174,21 @@ export function useRecords(type, data, updateData, initialFilter = 'همه') {
     openNew, openEdit, closeEditor, save, remove, markComplete, openPartialIncome, savePartialIncome,
     markBounced, restoreHistory, editHistory, deleteHistory,
   }
+}
+
+const upsertGeneratedDebtOverride = (records = [], override) => {
+  const exists = records.some(record => record.id === override.id || record.recurrenceKey === override.recurrenceKey)
+  return exists
+    ? records.map(record => record.id === override.id || record.recurrenceKey === override.recurrenceKey ? override : record)
+    : [override, ...records]
+}
+
+const deactivateRecurringDebtSeries = (records = [], item) => {
+  const now = new Date().toISOString()
+  const recurrenceId = item.recurrenceId || item.parentDebtId || item.id
+  return records.map(record => {
+    const inSeries = record.recurrenceId === recurrenceId || record.id === item.parentDebtId || record.parentDebtId === item.parentDebtId
+    if (!inSeries) return record
+    return { ...record, status: record.status === 'پرداخت شده' ? record.status : 'لغوشده', isDeleted: true, archived: true, inactive: true, deletedAt: now, deletedReason: 'user_deleted_series', updatedAt: now }
+  })
 }

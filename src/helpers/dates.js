@@ -7,7 +7,11 @@ const SETTLED = ['پرداخت شده', 'دریافت شده', 'تسویه‌ش�
 const RECURRENCE_MONTHS = { ماهانه: 1, دوماهه: 2, سه‌ماهه: 3, 'شش‌ماهه': 6, سالیانه: 12, سالانه: 12 }
 const pad = value => String(value).padStart(2, '0')
 const RECURRENCE_DAYS = { روزانه: 1, هفتگی: 7 }
-const lastGregorianDayOfMonth = (year, monthIndex) => new Date(Date.UTC(year, monthIndex + 1, 0)).getUTCDate()
+const lastJalaliDayOfMonth = (year, month) => {
+  let day = 31
+  while (!isValidJalaaliDate(year, month, day)) day -= 1
+  return day
+}
 
 export function isoToJalali(value) {
   if (!value) return ''
@@ -120,24 +124,17 @@ export function nextDueDate(item) {
       return date.toISOString().slice(0, 10)
     }
     if (!RECURRENCE_MONTHS[item.recurrence]) return ''
-    const targetMonth = date.getUTCMonth() + RECURRENCE_MONTHS[item.recurrence] * count
-    const targetYear = date.getUTCFullYear() + Math.floor(targetMonth / 12)
-    const monthIndex = ((targetMonth % 12) + 12) % 12
-    const targetDay = Math.min(date.getUTCDate(), lastGregorianDayOfMonth(targetYear, monthIndex))
-    const next = new Date(Date.UTC(targetYear, monthIndex, targetDay))
-    return next.toISOString().slice(0, 10)
+    const { jy, jm, jd } = toJalaali(date.getUTCFullYear(), date.getUTCMonth() + 1, date.getUTCDate())
+    const targetOffset = (jm - 1) + RECURRENCE_MONTHS[item.recurrence] * count
+    const targetYear = jy + Math.floor(targetOffset / 12)
+    const targetMonth = ((targetOffset % 12) + 12) % 12 + 1
+    const targetDay = Math.min(jd, lastJalaliDayOfMonth(targetYear, targetMonth))
+    const { gy, gm, gd } = toGregorian(targetYear, targetMonth, targetDay)
+    return `${gy}-${pad(gm)}-${pad(gd)}`
   }
   const anchor = normalize(item.startDate || item.loanStartDate || item.createdAt || item.dueDate)
   const currentDue = normalize(item.dueDate)
   if (!anchor) return ''
   if (!currentDue) return anchor
-  let next = anchor
-  let guard = 0
-  while (compareDates(next, currentDue) <= 0 && guard < 240) {
-    const candidate = addInterval(anchor, guard + 1)
-    if (!candidate || candidate === next) return ''
-    next = candidate
-    guard += 1
-  }
-  return next
+  return addInterval(currentDue, 1)
 }

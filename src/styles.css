@@ -46,6 +46,7 @@
   --muted-text-color: #74847f;
   --amount-unit-size: .57em;
   --font-scale: 1;
+  --app-header-height: calc(56px + env(safe-area-inset-top));
 }
 
 * { box-sizing: border-box; }
@@ -237,16 +238,17 @@ button, input, textarea, select, .record-card, .stat-card, .special-card, .botto
 .bottom-nav button.active { color: var(--brand); font-weight: 800; }
 .nav-icon { min-width: 38px; height: 29px; position: relative; border-radius: 10px; display: grid; place-items: center; }
 .active .nav-icon { background: var(--brand-soft); }
-.nav-icon i { width: 17px; height: 17px; position: absolute; top: -5px; left: -3px; border: 2px solid white; border-radius: 50%; display: grid; place-items: center; background: var(--red); color: white; font-size: 9px; font-style: normal; }
+.nav-icon i { width: 8px; height: 8px; position: absolute; top: 1px; left: 5px; border: 2px solid white; border-radius: 50%; display: block; background: var(--red); font-size: 0; font-style: normal; }
 
 .segmented { max-width: 100%; padding: 2px 0 9px; display: flex; gap: 7px; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
 .segmented::-webkit-scrollbar { display: none; }
 .segmented button { flex: none; padding: 8px 12px; border: 1px solid var(--line); border-radius: 30px; background: var(--card); color: var(--muted); white-space: nowrap; font-size: 11px; }
 .segmented button.active { border-color: var(--brand); background: var(--brand-soft); color: var(--ink); }
-.debt-time-tabs { margin: 4px 0 12px; padding: 4px; border: 1px solid color-mix(in srgb, var(--brand) 12%, var(--line)); border-radius: 16px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; background: color-mix(in srgb, var(--brand-soft) 35%, var(--card)); box-shadow: 0 7px 20px var(--brand-shadow); }
-.debt-time-tabs button { min-width: 0; min-height: 42px; padding: 7px 10px; border: 0; border-radius: 12px; display: flex; align-items: center; justify-content: center; gap: 7px; background: transparent; color: var(--muted); font-size: 11px; font-weight: 800; }
+.debt-time-tabs { margin: 4px 0 12px; padding: 4px; border: 1px solid color-mix(in srgb, var(--brand) 12%, var(--line)); border-radius: 16px; display: flex; flex-wrap: nowrap; width: 100%; gap: 4px; background: color-mix(in srgb, var(--brand-soft) 35%, var(--card)); box-shadow: 0 7px 20px var(--brand-shadow); }
+.debt-time-tabs button { flex: 1 1 0; min-width: 0; min-height: 42px; padding: 7px 10px; border: 0; border-radius: 12px; display: flex; align-items: center; justify-content: center; gap: 7px; overflow: hidden; background: transparent; color: var(--muted); font-size: 11px; font-weight: 800; text-align: center; white-space: nowrap; }
+.debt-time-tabs button span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .debt-time-tabs button.active { background: var(--brand); color: var(--on-brand); box-shadow: 0 8px 18px var(--brand-shadow); }
-.debt-time-tabs i { min-width: 24px; height: 24px; padding: 0 7px; border-radius: 999px; display: inline-grid; place-items: center; background: #edf2f0; color: var(--muted); font-size: 10px; font-style: normal; }
+.debt-time-tabs i { min-width: 22px; height: 22px; padding: 0 6px; flex: none; border-radius: 999px; display: inline-grid; place-items: center; background: #edf2f0; color: var(--muted); font-size: 9px; font-style: normal; }
 .debt-time-tabs button.active i { background: #ffffff24; color: #fff; }
 .expense-past-composition {
   margin: 0 0 12px;
@@ -435,9 +437,21 @@ button, input, textarea, select, .record-card, .stat-card, .special-card, .botto
 .account-contact-summary { padding: 2px 2px 0; display: flex; justify-content: space-between; align-items: center; gap: 8px; color: var(--ink); font-size: 12px; }
 .account-contact-summary span { color: var(--muted); font-size: 11px; direction: ltr; }
 .contact-save-message { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.9; }
-.contact-suggestion-hero { padding: 12px; border: 1px solid color-mix(in srgb, var(--brand) 18%, var(--line)); border-radius: 15px; display: grid; gap: 5px; background: color-mix(in srgb, var(--brand-soft, #e0f3ed) 55%, #fff); }
-.contact-suggestion-hero strong { color: var(--ink); font-size: 13px; }
-.suggestion-preview { padding: 12px; border: 1px solid var(--line); border-radius: 14px; display: grid; gap: 7px; background: #fff; color: var(--ink); font-size: 11px; }
+.contact-suggestion-sheet { display: grid; gap: 12px; }
+.contact-name-row { padding: 12px; border: 1px solid color-mix(in srgb, var(--brand) 14%, var(--line)); border-radius: 15px; display: flex; align-items: center; justify-content: space-between; gap: 10px; background: color-mix(in srgb, var(--brand-soft, #e0f3ed) 48%, #fff); }
+.contact-name-row span { color: var(--muted); font-size: 11px; font-weight: 800; }
+.contact-name-row strong { min-width: 0; overflow: hidden; color: var(--ink); text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
+.contact-info-list { padding: 4px 10px; border: 1px solid var(--line); border-radius: 15px; display: grid; background: #fff; }
+.contact-info-list div { min-height: 42px; padding: 9px 0; border-bottom: 1px solid color-mix(in srgb, var(--line) 70%, transparent); display: grid; grid-template-columns: minmax(84px, auto) minmax(0, 1fr); align-items: center; gap: 10px; }
+.contact-info-list div:last-child { border-bottom: 0; }
+.contact-info-list span { color: var(--muted); font-size: 10px; font-weight: 800; }
+.contact-info-list strong { min-width: 0; overflow: hidden; color: var(--ink); direction: ltr; text-align: right; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+.contact-info-list p { padding: 10px 0; }
+.contact-save-mode { padding: 3px; border: 1px solid var(--line); border-radius: 14px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; background: #fff; }
+.contact-save-mode label { min-height: 42px; padding: 8px 7px; border-radius: 11px; display: grid; place-items: center; color: var(--muted); text-align: center; font-size: 10px; font-weight: 900; cursor: pointer; }
+.contact-save-mode label.active { background: var(--brand-soft); color: var(--brand); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--brand) 20%, transparent); }
+.contact-save-mode input { display: none; }
+.contact-suggestion-actions { margin-top: 2px; }
 .inline-add-field { display: grid; gap: 9px; }
 .inline-add-btn { width: 100%; min-height: 42px; }
 .contact-update-select { width: 100%; min-height: 44px; padding: 0 10px; border: 1px solid var(--line); border-radius: 12px; background: #fff; color: var(--ink); }
@@ -585,6 +599,59 @@ button, input, textarea, select, .record-card, .stat-card, .special-card, .botto
 .detail-hero p { margin: 8px 0 0; color: var(--muted); font-size: 10px; }
 .detail-hero p .amount-display { font-size: 11px; }
 .detail-secondary-action { width: 100%; min-height: 44px; margin-top: 12px; border: 0; border-radius: 12px; background: var(--brand-soft); color: var(--brand); font-weight: 800; }
+.recurring-delete-dialog { display: grid; gap: 12px; }
+.recurring-delete-summary { padding: 12px; border: 1px solid var(--line); border-radius: 14px; display: flex; align-items: center; justify-content: space-between; gap: 10px; background: color-mix(in srgb, var(--brand-soft) 42%, #fff); }
+.recurring-delete-summary > div { min-width: 0; display: grid; gap: 4px; }
+.recurring-delete-summary strong { font-size: 14px; color: var(--ink); }
+.recurring-delete-summary span { color: var(--muted); font-size: 11px; }
+.recurring-select-all { min-height: 38px; white-space: nowrap; }
+.recurring-delete-options { max-height: min(46vh, 430px); display: grid; gap: 8px; overflow: auto; padding: 2px 1px 4px; }
+.recurring-delete-row { min-height: 58px; padding: 10px 11px; border: 1px solid var(--line); border-radius: 13px; display: grid; grid-template-columns: auto 28px minmax(0, 1fr) auto; align-items: center; gap: 9px; background: #fff; }
+.recurring-delete-row.selected { border-color: color-mix(in srgb, var(--brand) 45%, var(--line)); background: color-mix(in srgb, var(--brand-soft) 54%, #fff); box-shadow: 0 8px 18px var(--brand-shadow); }
+.recurring-delete-row input { width: 18px; height: 18px; accent-color: var(--brand); }
+.recurring-delete-row i { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: var(--brand-soft); color: var(--brand); font-size: 12px; font-style: normal; font-weight: 900; }
+.recurring-delete-date { min-width: 0; display: grid; gap: 3px; }
+.recurring-delete-date strong { color: var(--ink); font-size: 13px; }
+.recurring-delete-date small { color: var(--muted); font-size: 10px; }
+.recurring-delete-amount { color: var(--ink); font-size: 11px; white-space: nowrap; }
+.recurring-delete-actions { grid-template-columns: 1fr 1.25fr; }
+.recurring-delete-actions .danger-zone { margin-top: 0; justify-content: center; border-color: color-mix(in srgb, var(--red) 26%, var(--line)); background: #ffebe9; color: var(--red); font-weight: 900; }
+.recurring-delete-actions .danger-zone:disabled { opacity: .45; }
+.trash-page { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
+.trash-topbar { justify-content: space-between; }
+.trash-title-group { min-width: 0; display: flex; align-items: center; gap: 7px; }
+.trash-title-group > div { min-width: 0; }
+.trash-back-btn { width: 38px; min-width: 38px; height: 38px; }
+.trash-manage-btn { min-width: 66px; padding: 0 10px; font-size: 10px; font-weight: 900; }
+.trash-manage-btn:disabled { opacity: .45; }
+.trash-filter-tabs { display: flex; gap: 8px; overflow-x: auto; padding: 0 2px 10px; scrollbar-width: none; }
+.trash-filter-tabs::-webkit-scrollbar { display: none; }
+.trash-filter-tabs button { min-height: 38px; padding: 8px 11px; border: 1px solid var(--line); border-radius: 12px; display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; background: #fff; color: var(--muted); font-weight: 900; }
+.trash-filter-tabs button.active { border-color: color-mix(in srgb, var(--red) 28%, var(--line)); background: #ffebe9; color: var(--red); }
+.trash-filter-tabs i { min-width: 20px; height: 20px; border-radius: 999px; display: grid; place-items: center; background: color-mix(in srgb, var(--line) 55%, #fff); color: inherit; font-size: 10px; font-style: normal; }
+.trash-selection-bar { margin: 0 0 10px; padding: 9px; border: 1px solid var(--line); border-radius: 13px; display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 9px; background: #fff; }
+.trash-selection-bar .secondary-btn { min-height: 36px; padding: 0 10px; }
+.trash-selection-bar span { color: var(--muted); font-size: 10px; font-weight: 800; }
+.trash-list { display: grid; gap: 12px; }
+.trash-date-group { display: grid; gap: 8px; }
+.trash-date-group h2 { margin: 0; padding: 0 3px; color: var(--muted); font-size: 11px; font-weight: 900; }
+.trash-date-group > div { display: grid; gap: 10px; }
+.trash-card { padding: 13px; border: 1px solid var(--line); border-radius: 15px; display: grid; gap: 11px; background: #fff; }
+.trash-card.selectable { position: relative; cursor: pointer; }
+.trash-card.selected { border-color: color-mix(in srgb, var(--red) 42%, var(--line)); background: color-mix(in srgb, var(--red) 7%, #fff); box-shadow: 0 8px 20px color-mix(in srgb, var(--red) 13%, transparent); }
+.trash-select-indicator { width: 26px; height: 26px; position: absolute; top: 11px; left: 11px; border: 1px solid var(--line); border-radius: 999px; display: grid; place-items: center; background: #fff; color: #fff; }
+.trash-select-indicator.active { border-color: var(--red); background: var(--red); }
+.trash-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.trash-card-head div { min-width: 0; display: grid; gap: 3px; }
+.trash-card-head span:first-child { color: var(--muted); font-size: 10px; font-weight: 800; }
+.trash-card-head h3 { margin: 0; overflow: hidden; color: var(--ink); text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
+.trash-card-meta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.trash-card-meta span { min-width: 0; padding: 8px; border-radius: 10px; display: grid; gap: 3px; background: color-mix(in srgb, var(--brand-soft) 28%, #fff); color: var(--ink); font-size: 11px; }
+.trash-card-meta b { color: var(--muted); font-size: 9px; }
+.trash-restore-btn { width: 100%; min-height: 40px; }
+.trash-bulk-actions { width: auto; margin: 12px -16px 0; padding: 12px 16px calc(16px + env(safe-area-inset-bottom)); position: sticky; bottom: 0; z-index: 9; display: grid; grid-template-columns: 1fr 1fr 1.1fr; gap: 8px; border-top: 1px solid var(--line); background: #f8faf9; box-shadow: 0 -10px 22px rgba(17, 41, 35, .08); }
+.trash-bulk-actions .danger-zone { margin-top: 0; justify-content: center; background: #ffebe9; color: var(--red); font-weight: 900; }
+.trash-bulk-actions button:disabled { opacity: .45; }
 .undo-snackbar { width: calc(100% - 24px); max-width: 406px; min-height: 62px; padding: 10px 12px; position: fixed; right: 50%; bottom: calc(78px + env(safe-area-inset-bottom)); z-index: 80; transform: translateX(50%); border: 1px solid color-mix(in srgb, var(--brand) 20%, var(--line)); border-radius: 15px; display: flex; align-items: center; gap: 10px; background: color-mix(in srgb, var(--brand-soft) 42%, var(--ink)); color: var(--ink); box-shadow: 0 12px 28px var(--brand-shadow); }
 .undo-snackbar div { min-width: 0; flex: 1; }
 .undo-snackbar strong, .undo-snackbar span { display: block; font-size: 10px; }

@@ -1,4 +1,4 @@
-import { X, Plus, Search, History, ChevronLeft, Inbox } from 'lucide-react'
+import { X, Plus, Search, Trash2, ChevronLeft, Inbox } from 'lucide-react'
 import { useI18n } from '../i18n/I18nContext'
 
 export function PageHeader({ eyebrow, title, subtitle, onAdd, onHistory, logoSrc, logoAlt }) {
@@ -9,7 +9,7 @@ export function PageHeader({ eyebrow, title, subtitle, onAdd, onHistory, logoSrc
       <div><h1>{t(title)}</h1>{subtitle && <p>{t(subtitle)}</p>}</div>
     </div>
     <div className="header-actions">
-      {onHistory && <button className="icon-btn" onClick={onHistory} aria-label={t('تاریخچه')}><History size={20}/></button>}
+      {onHistory && <button className="icon-btn trash-header-btn" onClick={onHistory} aria-label={t('موارد حذف‌شده')} title={t('موارد حذف‌شده')}><Trash2 size={20}/></button>}
       {onAdd && <button className="add-btn" onClick={onAdd} aria-label={t('افزودن')}><Plus size={20}/></button>}
     </div>
   </header>

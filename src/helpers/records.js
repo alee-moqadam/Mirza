@@ -1,6 +1,42 @@
-import { compareDates, currentJalaliMonthEndIso, dynamicStatus, inCurrentMonth, jalaliToIso, nextDueDate } from './dates.js'
+import { compareDates, currentJalaliMonthEndIso, dynamicStatus, inCurrentMonth, isoToJalali, jalaliToIso, nextDueDate } from './dates.js'
 
-const SETTLED_TIME_STATUSES = ['پرداخت شده', 'تسویه‌شده', 'دریافت شده', 'لغوشده']
+const DELETED_STATUSES = ['لغوشده']
+const COMPLETED_DEBT_STATUSES = ['پرداخت شده', 'تسویه‌شده']
+const COMPLETED_INCOME_STATUSES = ['دریافت شده', 'تسویه‌شده']
+const COMPLETED_EXPENSE_STATUSES = ['پرداخت شده', 'تسویه‌شده']
+const isUserDeletedReason = reason => String(reason || '').startsWith('user_deleted')
+const hasDeleteMarker = item => Boolean(item?.isDeleted || item?.deletedAt || item?.deletedFromType || item?.deletedReason)
+const hasCompletionMarker = item => Boolean(
+  item?.isPaid ||
+  item?.paidAt ||
+  item?.isReceived ||
+  item?.receivedAt ||
+  item?.completedAt ||
+  COMPLETED_DEBT_STATUSES.includes(item?.status) ||
+  COMPLETED_INCOME_STATUSES.includes(item?.status) ||
+  COMPLETED_EXPENSE_STATUSES.includes(item?.status)
+)
+
+const clearDeletionFields = item => ({
+  ...item,
+  isDeleted: false,
+  deletedAt: '',
+  deletedFromType: '',
+  deletedReason: '',
+})
+
+export const hasExplicitUserDeleteMarker = item => {
+  if (!item) return false
+  if (isUserDeletedReason(item.deletedReason)) return true
+  return Boolean(item.isDeleted && item.deletedAt && item.deletedFromType && !hasCompletionMarker(item))
+}
+
+export const isDeletedHistoryItem = history => {
+  const item = history?.item || {}
+  if (isUserDeletedReason(history?.deletedReason) || isUserDeletedReason(item.deletedReason)) return true
+  if (history?.deletedFromType && history?.deletedAt && item.isDeleted && !hasCompletionMarker(item)) return true
+  return Boolean(item.isDeleted && item.deletedAt && item.deletedFromType && !hasCompletionMarker(item))
+}
 
 export function normalizeRecordTags(record = {}) {
   const sources = [record.tags, record.tagIds, record.labels]
@@ -50,6 +86,9 @@ export function normalizeFinancialRecord(record = {}, collection = '') {
     if (!normalized.relation) normalized.relation = normalized.direction === 'receivable' ? 'دریافتنی' : 'پرداختنی'
     if (!normalized.direction) normalized.direction = normalized.relation === 'دریافتنی' ? 'receivable' : 'payable'
   }
+  if (hasDeleteMarker(normalized) && hasCompletionMarker(normalized) && !isUserDeletedReason(normalized.deletedReason)) {
+    return clearDeletionFields(normalized)
+  }
   return normalized
 }
 
@@ -57,6 +96,7 @@ export function filterAndSortRecords(items, filter, sort) {
   const sortValue = item => sort === 'contact' ? (item.contact || item.contacts?.[0] || '') : (item[sort] || '')
   return (items || [])
     .map(normalizeFinancialRecord)
+    .filter(item => !isDeletedRecord(item))
     .filter(item => {
       const status = dynamicStatus(item)
       if (filter === 'بحرانی') return item.isCheck && ['برگشت‌خورده', 'عقب‌افتاده', 'نزدیک سررسید'].includes(item.status === 'برگشت‌خورده' ? item.status : status)
@@ -129,22 +169,51 @@ export function prepareRecord(record, collection = '') {
 }
 
 export function recordCompletionPatch(type, item) {
-  if (type === 'debts') return { status: 'پرداخت شده', paidCount: Number(item.paidCount || 0) + 1 }
-  if (type === 'incomes') return { status: 'دریافت شده', receivedAmount: item.amount }
+  const now = new Date().toISOString()
+  const notDeleted = { isDeleted: false, deletedAt: '', deletedFromType: '', deletedReason: '' }
+  if (type === 'debts') return { status: 'پرداخت شده', paidCount: Number(item.paidCount || 0) + 1, paidAt: item.paidAt || now, completedAt: item.completedAt || now, ...notDeleted }
+  if (type === 'incomes') return { status: 'دریافت شده', receivedAmount: item.amount, receivedAt: item.receivedAt || now, completedAt: item.completedAt || now, ...notDeleted }
   return { status: item.relation === 'پرداختنی' ? 'پرداخت شده' : 'دریافت شده' }
 }
 
 export function currentMonthPayables(items) {
-  return items.filter(item => item.relation === 'پرداختنی' && inCurrentMonth(item.dueDate) && !['پرداخت شده', 'تسویه‌شده'].includes(item.status))
+  return items.filter(item => !isDeletedRecord(item) && item.relation === 'پرداختنی' && inCurrentMonth(item.dueDate) && !isCompletedDebt(item))
 }
 
-export const isActiveTimeRecord = item => !SETTLED_TIME_STATUSES.includes(item.status)
+export function isDeletedRecord(item = {}) {
+  const normalized = hasDeleteMarker(item) && hasCompletionMarker(item) && !isUserDeletedReason(item.deletedReason)
+    ? clearDeletionFields(item)
+    : item
+  return Boolean(hasExplicitUserDeleteMarker(normalized) || DELETED_STATUSES.includes(normalized.status))
+}
 
-export function filterRecordsByTimeTab(items, tab) {
+export function isCompletedDebt(item = {}) {
+  return !isDeletedRecord(item) && Boolean(item.isPaid || item.paidAt || item.completedAt || COMPLETED_DEBT_STATUSES.includes(item.status))
+}
+
+export function isCompletedIncome(item = {}) {
+  return !isDeletedRecord(item) && Boolean(item.isReceived || item.receivedAt || item.completedAt || COMPLETED_INCOME_STATUSES.includes(item.status))
+}
+
+export function isCompletedExpense(item = {}) {
+  return !isDeletedRecord(item) && Boolean(item.paidAt || item.completedAt || COMPLETED_EXPENSE_STATUSES.includes(item.status))
+}
+
+export function isCompletedRecord(item = {}, type = '') {
+  if (type === 'debts') return isCompletedDebt(item)
+  if (type === 'incomes') return isCompletedIncome(item)
+  if (type === 'currentExpenses') return isCompletedExpense(item)
+  return !isDeletedRecord(item) && Boolean(item.completedAt || COMPLETED_DEBT_STATUSES.includes(item.status) || COMPLETED_INCOME_STATUSES.includes(item.status))
+}
+
+export const isActiveTimeRecord = (item, type = '') => !isDeletedRecord(item) && !isCompletedRecord(item, type)
+
+export function filterRecordsByTimeTab(items, tab, type = '') {
   const monthEnd = currentJalaliMonthEndIso()
   return (items || []).filter(source => {
-    const item = normalizeFinancialRecord(source)
-    if (!isActiveTimeRecord(item)) return false
+    const item = normalizeFinancialRecord(source, type)
+    if (tab === 'past') return isCompletedRecord(item, type)
+    if (!isActiveTimeRecord(item, type)) return false
     if (!item.dueDate) return tab === 'current'
     const isFuture = compareDates(item.dueDate, monthEnd) > 0
     return tab === 'future' ? isFuture : !isFuture
@@ -159,6 +228,7 @@ export function recordDate(item) {
 export function applyRecordFilters(items, filters = {}, type = '') {
   return (items || []).filter(source => {
     const item = normalizeFinancialRecord(source, type)
+    if (isDeletedRecord(item)) return false
     const amount = Number(item.amount || 0)
     const date = recordDate(item)
     const fromDate = normalizeRecordDate(filters.dateFrom)
@@ -174,4 +244,84 @@ export function applyRecordFilters(items, filters = {}, type = '') {
       (!fromDate || !date || compareDates(date, fromDate) >= 0) &&
       (!toDate || !date || compareDates(date, toDate) <= 0)
   })
+}
+
+export function createDeletedHistoryItem(type, item = {}) {
+  const now = new Date().toISOString()
+  return {
+    id: crypto.randomUUID(),
+    entityType: type,
+    deletedFromType: type,
+    createdAt: now,
+    deletedAt: now,
+    item: {
+      ...item,
+      isDeleted: true,
+      deletedAt: item.deletedAt || now,
+      deletedFromType: type,
+      deletedReason: item.deletedReason || 'user_deleted',
+      previousStatus: item.previousStatus || item.status || '',
+    },
+  }
+}
+
+export function cleanRestoredRecord(item = {}) {
+  const restored = {
+    ...item,
+    isDeleted: false,
+    inactive: false,
+    archived: false,
+    deletedAt: '',
+    deletedFromType: '',
+    deletedReason: '',
+    restoredAt: new Date().toISOString(),
+  }
+  if (restored.status === 'لغوشده') restored.status = restored.previousStatus || 'فعال'
+  return restored
+}
+
+export function getDeletedRecordsByType(histories = []) {
+  return (histories || []).filter(isDeletedHistoryItem).reduce((result, history) => {
+    const type = history.deletedFromType || history.entityType || history.item?.deletedFromType || 'other'
+    return { ...result, [type]: [...(result[type] || []), history] }
+  }, {})
+}
+
+export function getDeletedRecordKey(history = {}) {
+  const item = history.item || {}
+  return history.id || item.localId || item.id || item.recurrenceKey || ''
+}
+
+const deletedRecordTimestamp = history => String(history?.deletedAt || history?.item?.deletedAt || history?.createdAt || '')
+
+export function formatDeletedDateHeader(value) {
+  return value ? isoToJalali(value) || 'تاریخ حذف نامشخص' : 'تاریخ حذف نامشخص'
+}
+
+export function groupDeletedRecordsByDeletedDate(histories = []) {
+  const sorted = [...(histories || [])].sort((a, b) => deletedRecordTimestamp(b).localeCompare(deletedRecordTimestamp(a)))
+  const groups = new Map()
+  for (const history of sorted) {
+    const timestamp = deletedRecordTimestamp(history)
+    const key = timestamp ? timestamp.slice(0, 10) : 'unknown'
+    if (!groups.has(key)) groups.set(key, { key, label: formatDeletedDateHeader(timestamp), items: [] })
+    groups.get(key).items.push(history)
+  }
+  return [...groups.values()].sort((a, b) => {
+    if (a.key === 'unknown') return 1
+    if (b.key === 'unknown') return -1
+    return b.key.localeCompare(a.key)
+  })
+}
+
+export function getTrashSelectionState(selectedKeys = [], totalCount = 0) {
+  const selectedCount = selectedKeys.length
+  const isAllSelected = totalCount > 0 && selectedCount === totalCount
+  return {
+    selectedCount,
+    totalCount,
+    isAllSelected,
+    isNoneSelected: selectedCount === 0,
+    selectionActionLabel: isAllSelected ? 'لغو انتخاب' : 'انتخاب همه',
+  }
 }

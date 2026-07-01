@@ -1,4 +1,5 @@
-import { compareDates, currentJalaliMonthEndIso, currentJalaliMonthYear, inCurrentMonth, isoToJalali, isDueThroughCurrentJalaliMonth, isNearDue, isOverdue } from './dates'
+import { compareDates, currentJalaliMonthEndIso, currentJalaliMonthYear, inCurrentMonth, isoToJalali, isDueThroughCurrentJalaliMonth, isNearDue, isOverdue } from './dates.js'
+import { isDeletedRecord } from './records.js'
 
 export function totalInstallments(item) {
   if (item.totalCount) return item.totalCount
@@ -11,9 +12,9 @@ export function totalInstallments(item) {
 export const completedInstallments = (item) => Number(item.paidCount || (item.status === 'دریافت شده' ? totalInstallments(item) : 0))
 
 export function dashboardStats(data) {
-  const incomes = Array.isArray(data?.incomes) ? data.incomes : []
-  const currentExpenses = Array.isArray(data?.currentExpenses) ? data.currentExpenses : []
-  const allDebts = Array.isArray(data?.debts) ? data.debts : []
+  const incomes = Array.isArray(data?.incomes) ? data.incomes.filter(item => !isDeletedRecord(item)) : []
+  const currentExpenses = Array.isArray(data?.currentExpenses) ? data.currentExpenses.filter(item => !isDeletedRecord(item)) : []
+  const allDebts = Array.isArray(data?.debts) ? data.debts.filter(item => !isDeletedRecord(item) && !item.isRecurringParent && !item.archived && !item.inactive) : []
   const monthIncome = incomes.filter(item => inCurrentMonth(item.dueDate))
   const monthExpense = currentExpenses.filter(item => inCurrentMonth(item.expenseDate || item.dueDate))
   const sum = (items, field = 'amount') => items.reduce((total, item) => total + Number(item[field] || 0), 0)
@@ -41,13 +42,13 @@ export function dashboardStats(data) {
 }
 
 export function expenseComposition(data) {
-  const items = (Array.isArray(data?.currentExpenses) ? data.currentExpenses : []).filter(item => inCurrentMonth(item.expenseDate || item.dueDate))
+  const items = (Array.isArray(data?.currentExpenses) ? data.currentExpenses : []).filter(item => !isDeletedRecord(item) && inCurrentMonth(item.expenseDate || item.dueDate))
   return Object.entries(items.reduce((result, item) => ({ ...result, [item.category || 'بدون دسته‌بندی']: (result[item.category || 'بدون دسته‌بندی'] || 0) + Number(item.amount || 0) }), {}))
 }
 
 export function annualSummary(data, year = currentJalaliMonthYear().year) {
   const inYear = item => Number(isoToJalali(item.dueDate).split('/')[0]) === year
-  const sum = (items, field = 'amount') => items.filter(inYear).reduce((total, item) => total + Number(item[field] || 0), 0)
+  const sum = (items, field = 'amount') => items.filter(item => !isDeletedRecord(item) && inYear(item)).reduce((total, item) => total + Number(item[field] || 0), 0)
   const income = sum(Array.isArray(data?.incomes) ? data.incomes : [])
   const expense = sum(Array.isArray(data?.expenses) ? data.expenses : [])
   return { year, income, expense, balance: income - expense }

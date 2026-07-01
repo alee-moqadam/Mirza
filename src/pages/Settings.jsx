@@ -13,13 +13,14 @@ import { createBankRecord, getBankIcon } from '../constants/banks'
 import { ACCENT_OPTIONS, CONTACT_TYPES, CURRENCY_OPTIONS, SETTINGS_ENTITY_TITLES, THEME_OPTIONS } from '../constants/settings'
 import { contactDetails } from '../helpers/contacts'
 import { convertFinanceData } from '../helpers/currency'
+import { isDeletedHistoryItem } from '../helpers/records'
 import { useSettings } from '../hooks/useSettings'
 import { DIGIT_STYLES, LANGUAGES } from '../i18n/translations'
 import { useI18n } from '../i18n/I18nContext'
 import { hashPasscode } from '../hooks/useAppLock'
 import { APP_LOGO_PATH, APP_NAME, APP_NAME_FA, APP_VERSION } from '../config/app'
 
-export default function Settings({ data, updateData, onReset }) {
+export default function Settings({ data, updateData, navigate, onReset }) {
   const { t } = useI18n()
   const settings = useSettings(data, updateData)
   const [currencyChange, setCurrencyChange] = useState(null)
@@ -42,7 +43,7 @@ export default function Settings({ data, updateData, onReset }) {
   }
 
   return <div className="page settings-page">
-    {settings.tab === 'overview' ? <SettingsOverview data={data} settings={settings} onProfile={() => { setProfile(data.profile); setProfileOpen(true) }} />
+    {settings.tab === 'overview' ? <SettingsOverview data={data} settings={settings} onTrash={() => navigate?.('trash', 'all')} onProfile={() => { setProfile(data.profile); setProfileOpen(true) }} />
       : <SettingsSubPage settings={settings} data={data} onBack={() => settings.setTab('overview')}>
         {settings.tab === 'ظاهر برنامه' && <AppearanceSection data={data} updateData={updateData}/>}
         {settings.tab === 'مخاطبین مالی' && <ContactsSection settings={settings}/>}
@@ -68,7 +69,8 @@ export default function Settings({ data, updateData, onReset }) {
   </div>
 }
 
-function SettingsOverview({ data, settings, onProfile }) {
+function SettingsOverview({ data, settings, onTrash, onProfile }) {
+  const deletedCount = (data.histories || []).filter(isDeletedHistoryItem).length
   return <>
     <PageHeader eyebrow="شخصی‌سازی و داده‌ها" title="تنظیمات" subtitle="مدیریت حساب، ظاهر و اطلاعات پایه"/>
     <button className="profile-card" onClick={onProfile}>
@@ -92,6 +94,7 @@ function SettingsOverview({ data, settings, onProfile }) {
       <SettingsRow icon={Tag} title="مدیریت تگ‌ها" subtitle={`${data.tags.length} تگ فعال`} onClick={() => settings.setTab('تگ‌ها')}/>
     </SettingsGroup>
     <SettingsGroup title="اطلاعات، امنیت و درباره برنامه">
+      <SettingsRow icon={Trash2} title="موارد حذف‌شده" subtitle={`${deletedCount} مورد در سطل حذف‌شده‌ها`} onClick={onTrash}/>
       <SettingsRow icon={ShieldCheck} title="داده و حریم خصوصی" subtitle="ذخیره محلی و بازنشانی اطلاعات" onClick={() => settings.setTab('داده و حریم خصوصی')}/>
       <SettingsRow icon={Info} title="درباره میرزا" subtitle="نسخه، امکانات و اطلاعات توسعه‌دهنده" onClick={() => settings.setTab('درباره میرزا')}/>
     </SettingsGroup>

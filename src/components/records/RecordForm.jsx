@@ -7,6 +7,7 @@ import { BankQuickAddModal } from '../BankPicker'
 import { BottomSheetSelect, ContactTagPicker, SingleChoice, TagPicker } from '../FormControls'
 import { useI18n } from '../../i18n/I18nContext'
 import { jalaliToIso, isoToJalali } from '../../helpers/dates'
+import { addJalaliPeriod } from '../../helpers/recurrence'
 import { getBankIcon } from '../../constants/banks'
 import { RECURRENCE_OPTIONS } from '../../constants/records'
 
@@ -99,10 +100,8 @@ export default function RecordForm({ type, config, data, updateData, categories,
 const addMonthsToJalali = (value, months) => {
   const iso = jalaliToIso(value) || value
   if (!iso) return ''
-  const date = new Date(iso)
-  if (Number.isNaN(date.getTime())) return ''
-  date.setMonth(date.getMonth() + Number(months || 0))
-  return isoToJalali(date.toISOString().slice(0, 10))
+  const next = addJalaliPeriod(iso, 'ماهانه', Math.max(0, Number(months || 0) - 1))
+  return next ? isoToJalali(next) : ''
 }
 
 const contactPaymentOptions = contact => (contact?.bankAccounts || []).flatMap(account => [
@@ -367,7 +366,7 @@ function LoanDurationStepper({ value, onChange }) {
   }
 
   return <div className="field number-stepper-field">
-    <label>مدت زمان پرداخت دوره‌ای، ماه</label>
+    <label>مدت زمان پرداخت دوره‌ای</label>
     <div className="number-stepper" dir="ltr">
       <button type="button" aria-label="کاهش مدت زمان پرداخت دوره‌ای" onClick={() => onChange(Math.max(0, numericValue - 1))} disabled={numericValue <= 0}>
         <Minus size={17} />

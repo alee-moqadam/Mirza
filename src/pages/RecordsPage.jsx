@@ -10,15 +10,27 @@ import RecordCard from '../components/records/RecordCard'
 import RecordForm from '../components/records/RecordForm'
 import RecordToolbar from '../components/records/RecordToolbar'
 import { useRecords } from '../hooks/useRecords'
-import { number } from '../helpers/formatters'
+import { dateLabel, number } from '../helpers/formatters'
 import HistoryView from './HistoryView'
 import { RECORD_CONFIG, RECORD_DEFAULTS } from '../constants/records'
 import { compareDates, currentJalaliMonthStartIso, inCurrentMonth, isoToJalali } from '../helpers/dates'
-import { applyRecordFilters, filterRecordsByTimeTab, prepareRecord } from '../helpers/records'
+import { applyRecordFilters, createDeletedHistoryItem, filterRecordsByTimeTab, isDeletedRecord, prepareRecord } from '../helpers/records'
+import { CONTACT_SUGGESTION_SAVE_MODES, applyContactSuggestion, getContactSuggestionFields } from '../helpers/contacts'
+import {
+  createRecurringDebtParent,
+  deleteRecurringOccurrences,
+  generateRecurringDebtOccurrences,
+  getOccurrenceKey,
+  getRecurringDeleteSelectionState,
+  getRecurringGroupForRecord,
+  isRecurringChild,
+  isRecurringParent,
+  reconcileRecurringDebtOccurrences,
+} from '../helpers/recurrence'
 import { getBankIcon } from '../constants/banks'
 import { useI18n } from '../i18n/I18nContext'
 
-export default function RecordsPage({ type, data, updateData, initialFilter = 'همه' }) {
+export default function RecordsPage({ type, data, updateData, initialFilter = 'همه', navigate }) {
   const { t } = useI18n()
   const records = useRecords(type, data, updateData, initialFilter)
   const currency = data.currency || 'تومان'
@@ -29,6 +41,7 @@ export default function RecordsPage({ type, data, updateData, initialFilter = '�
   const [contactSuggestion, setContactSuggestion] = useState(null)
   const [timeTab, setTimeTab] = useState('current')
   const [expenseTimeTab, setExpenseTimeTab] = useState('current')
+  const [recurringDelete, setRecurringDelete] = useState(null)
   const detailType = type
   const hasTimeTabs = ['debts', 'incomes'].includes(type)
   const hasExpenseTabs = type === 'currentExpenses'
@@ -109,7 +122,31 @@ export default function RecordsPage({ type, data, updateData, initialFilter = '�
       maybeSuggestContact(incomeChecks[0], data.financialContacts || [], setContactSuggestion)
       return
     }
-    const debtRecords = item.isCheck ? buildCheckRecords(item) : [item]
+    if (!item.isCheck && item.isPeriodic && item.recurrence !== 'فقط یک‌بار') {
+      updateData(current => {
+        const parent = createRecurringDebtParent(item)
+        const existingOccurrences = (current.debts || []).filter(record =>
+          record.recurrenceId === parent.recurrenceId &&
+          (record.isGenerated || record.isRecurringChild || record.parentDebtId === parent.id)
+        )
+        const reconciled = reconcileRecurringDebtOccurrences({ parentDebt: parent, existingOccurrences })
+        const nextSeriesIds = new Set(reconciled.records.map(record => record.id))
+        return {
+          ...current,
+          debts: [
+            ...reconciled.records,
+            ...current.debts.filter(record => {
+              const sameSeries = record.recurrenceId === parent.recurrenceId || record.id === parent.id || record.parentDebtId === parent.id
+              return !sameSeries && !nextSeriesIds.has(record.id)
+            }),
+          ],
+        }
+      })
+      records.closeEditor()
+      maybeSuggestContact(item, data.financialContacts || [], setContactSuggestion)
+      return
+    }
+    const debtRecords = item.isCheck ? buildCheckRecords(item) : [{ ...item, isRecurringParent: false, isRecurringChild: false }]
     updateData(current => ({
       ...current,
       debts: [
@@ -162,9 +199,60 @@ export default function RecordsPage({ type, data, updateData, initialFilter = '�
     }
     records.save(event)
   }
+  const openDelete = item => {
+    if (type !== 'debts' || (!isRecurringChild(item) && !isRecurringParent(item))) {
+      records.remove(item)
+      return
+    }
+    const group = getRecurringGroupForRecord(item, data.debts || [])
+    const parent = group.parent || item
+    const occurrences = generateRecurringDebtOccurrences({ parentDebt: parent, existingOccurrences: group.children })
+      .filter(occurrence => !occurrence.archived && !occurrence.inactive && occurrence.status !== 'لغوشده')
+      .sort((a, b) => compareDates(a.dueDate, b.dueDate))
+    const targetKey = getOccurrenceKey(item)
+    setRecurringDelete({
+      item,
+      parent,
+      occurrences,
+      selectedKeys: targetKey ? [targetKey] : occurrences.map(getOccurrenceKey),
+    })
+  }
+  const setDeleteSelection = key => {
+    setRecurringDelete(current => {
+      if (!current) return current
+      const selected = new Set(current.selectedKeys)
+      selected.has(key) ? selected.delete(key) : selected.add(key)
+      return { ...current, selectedKeys: [...selected] }
+    })
+  }
+  const setAllDeleteSelections = keys => {
+    setRecurringDelete(current => current ? { ...current, selectedKeys: keys } : current)
+  }
+  const applyRecurringDelete = (mode) => {
+    if (!recurringDelete) return
+    const targetKey = getOccurrenceKey(recurringDelete.item)
+    const selection = getRecurringDeleteSelectionState(recurringDelete.selectedKeys, recurringDelete.occurrences.length)
+    const occurrenceKeys = mode === 'one' ? [targetKey] : recurringDelete.selectedKeys
+    const historyItems = recurringDelete.occurrences.filter(occurrence => occurrenceKeys.includes(getOccurrenceKey(occurrence)))
+    updateData(current => ({
+      ...current,
+      debts: deleteRecurringOccurrences({
+        records: current.debts || [],
+        targetRecord: recurringDelete.item,
+        occurrenceKeys,
+        deleteSeries: mode === 'all' || selection.isAllSelected,
+      }),
+      histories: [
+        ...historyItems.map(item => createDeletedHistoryItem('debts', item)),
+        ...(current.histories || []),
+      ],
+    }))
+    records.setDetail(null)
+    setRecurringDelete(null)
+  }
 
-  return <div className="page">
-    <PageHeader eyebrow={records.config.eyebrow} title={records.config.title} subtitle={`${number(records.items.length)} مورد ثبت‌شده`} onAdd={openAdd} onHistory={() => records.setHistoryOpen(true)}/>
+  return <div className="page records-page">
+    <PageHeader eyebrow={records.config.eyebrow} title={records.config.title} subtitle={`${number(records.items.length)} مورد ثبت‌شده`} onAdd={openAdd} onHistory={() => navigate?.('trash', type) || records.setHistoryOpen(true)}/>
     {hasTimeTabs && <RecordTimeTabs value={timeTab} onChange={setTimeTab} items={records.visibleItems} type={type}/>}
     {hasExpenseTabs && <ExpenseTimeTabs value={expenseTimeTab} onChange={setExpenseTimeTab} items={records.visibleItems}/>}
     <RecordToolbar type={type} filter={records.filter} filters={records.filters} sort={records.sort} onFilter={records.setFilter} onSort={records.setSort}
@@ -177,7 +265,7 @@ export default function RecordsPage({ type, data, updateData, initialFilter = '�
     <RecordDetailSheet
       item={records.detail} type={detailType} currency={currency} onClose={() => records.setDetail(null)}
       onEdit={() => records.openEdit(records.detail)}
-      onDelete={() => records.remove(records.detail)}
+      onDelete={() => openDelete(records.detail)}
     >
       {detailType === 'incomes' && <button className="detail-secondary-action" onClick={() => records.openPartialIncome(records.detail)}>{t('ثبت میزان دریافت')}</button>}
       {detailType === 'debts' && records.detail?.isCheck && <button className="detail-secondary-action danger-lite" onClick={() => records.markBounced(records.detail)}>{t('ثبت برگشت چک')}</button>}
@@ -188,6 +276,7 @@ export default function RecordsPage({ type, data, updateData, initialFilter = '�
         {type === 'incomes' && <><button onClick={() => chooseIncomeAdd(false)}>افزودن درآمد</button><button onClick={() => chooseIncomeAdd(true)}>افزودن چک دریافتی</button></>}
       </div>
     </Modal>
+    <RecurringDeleteDialog state={recurringDelete} currency={currency} onToggle={setDeleteSelection} onSetAll={setAllDeleteSelections} onApply={applyRecurringDelete} onClose={() => setRecurringDelete(null)}/>
     <PartialIncomeModal records={records} currency={currency}/>
     <RecordAdvancedFilters open={advancedOpen} type={type} data={data} updateData={updateData} filters={advancedFilters} setFilters={setAdvancedFilters} onClose={() => setAdvancedOpen(false)}/>
     <ContactSuggestionModal suggestion={contactSuggestion} contacts={data.financialContacts || []} onClose={() => setContactSuggestion(null)} onSave={(mode, targetId) => {
@@ -197,6 +286,44 @@ export default function RecordsPage({ type, data, updateData, initialFilter = '�
     <HistoryView open={records.historyOpen} type={type} title={records.config.title} histories={data.histories} currency={currency} onClose={() => records.setHistoryOpen(false)} onRestore={records.restoreHistory} onEdit={records.editHistory} onDelete={records.deleteHistory}/>
     <UndoSnackbar pending={records.undo.pending} onUndo={records.undo.undo}/>
   </div>
+}
+
+function RecurringDeleteDialog({ state, currency, onToggle, onSetAll, onApply, onClose }) {
+  if (!state) return null
+  const allKeys = state.occurrences.map(getOccurrenceKey)
+  const selection = getRecurringDeleteSelectionState(state.selectedKeys, state.occurrences.length)
+  const applySelectionAction = () => onSetAll(selection.isAllSelected ? [] : allKeys)
+  const deleteMode = selection.isAllSelected ? 'all' : 'selected'
+  return <Modal open={!!state} title="حذف بدهی دوره‌ای" onClose={onClose} wide>
+    <div className="recurring-delete-dialog">
+      <div className="recurring-delete-summary">
+        <div>
+          <strong>{state.parent.title || state.item.title}</strong>
+          <span><AmountDisplay value={state.parent.amount || state.item.amount} currency={currency}/> • {state.parent.recurrence || state.item.recurrence || 'دوره‌ای'}</span>
+        </div>
+        <button type="button" className="secondary-btn recurring-select-all" onClick={applySelectionAction}>{selection.topSelectionButtonLabel}</button>
+      </div>
+      <div className="recurring-delete-options">
+        {state.occurrences.map(occurrence => {
+          const key = getOccurrenceKey(occurrence)
+          const selected = state.selectedKeys.includes(key)
+          return <label key={key} className={`recurring-delete-row ${selected ? 'selected' : ''}`}>
+            <input type="checkbox" checked={state.selectedKeys.includes(key)} onChange={() => onToggle(key)} />
+            <i>{selected ? '✓' : ''}</i>
+            <span className="recurring-delete-date">
+              <strong>{dateLabel(occurrence.dueDate)}</strong>
+              <small>{occurrence.status || 'فعال'} • نوبت {number(Number(occurrence.occurrenceIndex || 0) + 1)}</small>
+            </span>
+            <span className="recurring-delete-amount"><AmountDisplay value={occurrence.amount} currency={currency}/></span>
+          </label>
+        })}
+      </div>
+      <div className="form-actions recurring-delete-actions">
+        <button type="button" className="secondary-btn" onClick={onClose}>انصراف</button>
+        <button type="button" className="danger-zone" onClick={() => onApply(deleteMode)} disabled={selection.isNoneSelected}>{selection.deleteButtonLabel}</button>
+      </div>
+    </div>
+  </Modal>
 }
 
 const emptyStateForRecords = type => {
@@ -239,6 +366,7 @@ const buildCheckRecords = item => {
 const filterExpensesByTimeTab = (items, tab) => {
   const monthStart = currentJalaliMonthStartIso()
   return items.filter(item => {
+    if (isDeletedRecord(item)) return false
     const date = item.expenseDate || item.dueDate
     if (!date) return tab === 'current'
     return tab === 'past' ? compareDates(date, monthStart) < 0 : inCurrentMonth(date)
@@ -249,13 +377,17 @@ function RecordTimeTabs({ value, onChange, items, type }) {
   const counts = {
     current: filterRecordsByTimeTab(items, 'current', type).length,
     future: filterRecordsByTimeTab(items, 'future', type).length,
+    past: filterRecordsByTimeTab(items, 'past', type).length,
   }
-  return <div className="debt-time-tabs" role="tablist" aria-label="بازه رکوردها">
+  return <div className="debt-time-tabs record-time-tabs" role="tablist" aria-label="بازه رکوردها">
     <button type="button" role="tab" aria-selected={value === 'current'} className={value === 'current' ? 'active' : ''} onClick={() => onChange('current')}>
       <span>جاری</span><i>{number(counts.current)}</i>
     </button>
     <button type="button" role="tab" aria-selected={value === 'future'} className={value === 'future' ? 'active' : ''} onClick={() => onChange('future')}>
       <span>آتی</span><i>{number(counts.future)}</i>
+    </button>
+    <button type="button" role="tab" aria-selected={value === 'past'} className={value === 'past' ? 'active' : ''} onClick={() => onChange('past')}>
+      <span>گذشته</span><i>{number(counts.past)}</i>
     </button>
   </div>
 }
@@ -387,92 +519,43 @@ const maybeSuggestContact = (item, contacts, setContactSuggestion) => {
   setContactSuggestion(suggestion)
 }
 
-const mergeBankAccount = (accounts = [], nextAccount) => {
-  if (!nextAccount || ![nextAccount.bank, nextAccount.account, nextAccount.iban, nextAccount.card].some(Boolean)) return accounts
-  const index = accounts.findIndex(account =>
-    (nextAccount.id && account.id === nextAccount.id) ||
-    (nextAccount.card && account.card === nextAccount.card) ||
-    (nextAccount.iban && account.iban === nextAccount.iban) ||
-    (nextAccount.account && nextAccount.bank && account.account === nextAccount.account && account.bank === nextAccount.bank)
-  )
-  if (index === -1) return [{ ...nextAccount, id: nextAccount.id || crypto.randomUUID() }, ...accounts]
-  return accounts.map((account, i) => i === index ? { ...account, ...nextAccount, id: account.id || nextAccount.id || crypto.randomUUID() } : account)
-}
-
-const applyContactSuggestion = (current, suggestion, mode, targetId) => {
-  if (!suggestion) return current
-  const now = new Date().toISOString()
-  const existing = mode === 'update'
-    ? current.financialContacts.find(contact => contact.id === targetId)
-    : current.financialContacts.find(contact => contact.title === suggestion.title)
-  if (existing) {
-    return {
-      ...current,
-      financialContacts: current.financialContacts.map(contact => {
-        if (contact.id !== existing.id) return contact
-        const bankAccounts = mergeBankAccount(contact.bankAccounts || [], suggestion.bankAccount)
-        const primary = bankAccounts[0] || {}
-        return {
-          ...contact,
-          mobile: suggestion.mobile || contact.mobile || '',
-          nationalId: suggestion.nationalId || contact.nationalId || '',
-          bank: primary.bank || contact.bank || '',
-          account: primary.account || contact.account || '',
-          iban: primary.iban || contact.iban || '',
-          card: primary.card || contact.card || '',
-          bankAccounts,
-          updatedAt: now,
-        }
-      }),
-    }
-  }
-  const bankAccounts = mergeBankAccount([], suggestion.bankAccount)
-  return {
-    ...current,
-    financialContacts: [{
-      id: crypto.randomUUID(),
-      title: suggestion.title,
-      type: 'شخصی',
-      mobile: suggestion.mobile,
-      nationalId: suggestion.nationalId,
-      bank: bankAccounts[0]?.bank || '',
-      account: bankAccounts[0]?.account || '',
-      iban: bankAccounts[0]?.iban || '',
-      card: bankAccounts[0]?.card || '',
-      bankAccounts,
-      description: 'ثبت‌شده از فرم مالی',
-      createdAt: now,
-      updatedAt: now,
-    }, ...current.financialContacts],
-  }
-}
-
 function ContactSuggestionModal({ suggestion, contacts, onClose, onSave }) {
-  const [targetId, setTargetId] = useState('')
+  const [saveMode, setSaveMode] = useState(CONTACT_SUGGESTION_SAVE_MODES.updateExisting)
   if (!suggestion) return null
   const sameTitle = contacts.find(contact => contact.title === suggestion.title)
-  const selectedId = targetId || sameTitle?.id || ''
+  const selectedMode = sameTitle ? saveMode : CONTACT_SUGGESTION_SAVE_MODES.createNew
+  const enteredInfoFields = getContactSuggestionFields(suggestion)
+  const canSave = enteredInfoFields.length > 0
+  const submit = () => {
+    if (!canSave) return
+    onSave(selectedMode, selectedMode === CONTACT_SUGGESTION_SAVE_MODES.updateExisting ? sameTitle?.id : '')
+  }
   return <Modal open={!!suggestion} title="ذخیره در مخاطبین مالی" onClose={onClose}>
-    <div className="form-grid contact-suggestion-sheet">
-      <div className="contact-suggestion-hero">
-        <strong>{sameTitle ? 'اطلاعات جدید برای مخاطب موجود پیدا شد' : 'این مخاطب هنوز ذخیره نشده است'}</strong>
-        <p className="contact-save-message">اطلاعات واردشده برای «{suggestion.title}» قابل ذخیره است. اگر حساب جدید باشد به حساب‌های مخاطب اضافه می‌شود و اگر مشابه باشد جایگزین نمی‌شود.</p>
+    <div className="contact-suggestion-sheet">
+      <div className="contact-name-row">
+        <span>مخاطب مالی</span>
+        <strong>{suggestion.title}</strong>
       </div>
-      <div className="suggestion-preview">
-        {suggestion.mobile && <span>موبایل: {suggestion.mobile}</span>}
-        {suggestion.bankAccount?.bank && <span>بانک: {suggestion.bankAccount.bank}</span>}
-        {suggestion.bankAccount?.card && <span>کارت: {suggestion.bankAccount.card}</span>}
-        {suggestion.bankAccount?.iban && <span>شبا: {suggestion.bankAccount.iban}</span>}
-        {suggestion.bankAccount?.account && <span>حساب: {suggestion.bankAccount.account}</span>}
+      <div className="contact-info-list">
+        {enteredInfoFields.map(field => <div key={field.label}>
+          <span>{field.label}</span>
+          <strong>{field.value}</strong>
+        </div>)}
+        {!enteredInfoFields.length && <p className="contact-save-message">اطلاعات قابل ذخیره‌ای برای این مخاطب وارد نشده است.</p>}
       </div>
-      <div className="form-actions stacked-actions">
-        <button type="button" className="secondary-btn" onClick={onClose}>فعلاً نه</button>
-        {contacts.length > 0 && <select className="contact-update-select" value={selectedId} onChange={event => setTargetId(event.target.value)}>
-          <option value="">انتخاب مخاطب برای آپدیت</option>
-          {contacts.map(contact => <option key={contact.id} value={contact.id}>{contact.title}</option>)}
-        </select>}
-        {selectedId && <button type="button" className="primary-btn" onClick={() => onSave('update', selectedId)}>ویرایش/آپدیت مخاطب انتخاب‌شده</button>}
-        <button type="button" className="primary-btn" onClick={() => onSave('create')}>ثبت به عنوان مخاطب جدید</button>
+      {sameTitle && <div className="contact-save-mode" role="radiogroup" aria-label="روش ذخیره مخاطب">
+        <label className={selectedMode === CONTACT_SUGGESTION_SAVE_MODES.updateExisting ? 'active' : ''}>
+          <input type="radio" name="contact-save-mode" value={CONTACT_SUGGESTION_SAVE_MODES.updateExisting} checked={selectedMode === CONTACT_SUGGESTION_SAVE_MODES.updateExisting} onChange={() => setSaveMode(CONTACT_SUGGESTION_SAVE_MODES.updateExisting)} />
+          <span>به‌روزرسانی اطلاعات مخاطب</span>
+        </label>
+        <label className={selectedMode === CONTACT_SUGGESTION_SAVE_MODES.createNew ? 'active' : ''}>
+          <input type="radio" name="contact-save-mode" value={CONTACT_SUGGESTION_SAVE_MODES.createNew} checked={selectedMode === CONTACT_SUGGESTION_SAVE_MODES.createNew} onChange={() => setSaveMode(CONTACT_SUGGESTION_SAVE_MODES.createNew)} />
+          <span>ثبت به عنوان مخاطب جدید</span>
+        </label>
+      </div>}
+      <div className="form-actions contact-suggestion-actions">
+        <button type="button" className="secondary-btn" onClick={onClose}>بازگشت</button>
+        <button type="button" className="primary-btn" onClick={submit} disabled={!canSave}>ذخیره اطلاعات</button>
       </div>
     </div>
   </Modal>
